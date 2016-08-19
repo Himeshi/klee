@@ -30,6 +30,7 @@ struct KFunction;
 struct KInstruction;
 class MemoryObject;
 class PTreeNode;
+class SymbolicError;
 struct InstructionInfo;
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
@@ -141,12 +142,15 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::set<std::string> arrayNames;
 
+  //@brier Symbolic error information
+  SymbolicError *symbolicError;
+
   std::string getFnAlias(std::string fn);
   void addFnAlias(std::string old_fn, std::string new_fn);
   void removeFnAlias(std::string fn);
 
 private:
-  ExecutionState() : ptreeNode(0) {}
+  ExecutionState() : ptreeNode(0), symbolicError(0) {}
 
 public:
   ExecutionState(KFunction *kf);
