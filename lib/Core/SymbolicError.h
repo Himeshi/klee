@@ -9,10 +9,17 @@
 #define KLEE_SYMBOLICERROR_H_
 
 #include "klee/Expr.h"
-#include "Executor.h"
 #include "klee/util/ArrayCache.h"
 
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
+#include "llvm/IR/Instructions.h"
+#else
+#include "llvm/Instructions.h"
+#endif
+
 namespace klee {
+class Executor;
+
 class SymbolicError {
 
 	std::map<Expr *, ref<Expr> > valueErrorMap;

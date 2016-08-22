@@ -16,6 +16,7 @@
 
 // FIXME: We do not want to be exposing these? :(
 #include "../../lib/Core/AddressSpace.h"
+#include "../../lib/Core/SymbolicError.h"
 #include "klee/Internal/Module/KInstIterator.h"
 
 #include <map>
@@ -30,7 +31,6 @@ struct KFunction;
 struct KInstruction;
 class MemoryObject;
 class PTreeNode;
-class SymbolicError;
 struct InstructionInfo;
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
@@ -142,7 +142,7 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::set<std::string> arrayNames;
 
-  //@brier Symbolic error information
+  //@brief Symbolic error information
   SymbolicError *symbolicError;
 
   std::string getFnAlias(std::string fn);

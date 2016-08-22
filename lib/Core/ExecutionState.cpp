@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "SymbolicError.h"
 #include "klee/ExecutionState.h"
 
 #include "klee/Internal/Module/Cell.h"
