@@ -78,7 +78,8 @@ ExecutionState::ExecutionState(KFunction *kf) :
     instsSinceCovNew(0),
     coveredNew(false),
     forkDisabled(false),
-    ptreeNode(0) {
+    ptreeNode(0),
+	symbolicError(new SymbolicError()) {
   pushFrame(0, kf);
 }
 
@@ -97,8 +98,8 @@ ExecutionState::~ExecutionState() {
 
   while (!stack.empty()) popFrame();
 
-  if (symbolicError)
-	  delete symbolicError;
+  /*if (symbolicError)
+	  delete symbolicError;*/
 }
 
 ExecutionState::ExecutionState(const ExecutionState& state):
