@@ -1929,15 +1929,19 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Sub: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    bindLocal(ki, state, SubExpr::create(left, right));
+    ref<Expr> result = SubExpr::create(left, right);
+    bindLocal(ki, state, result);
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+    arguments.push_back(right);
+    state.symbolicError->propagateError(this, i, result, arguments);
     break;
   }
  
   case Instruction::Mul: {
     ref<Expr> left = eval(ki, 0, state).value;
-    //llvm::errs()<<left;
     ref<Expr> right = eval(ki, 1, state).value;
-    //llvm::errs()<<right;
     bindLocal(ki, state, MulExpr::create(left, right));
     break;
   }
