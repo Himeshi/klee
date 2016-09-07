@@ -18,27 +18,27 @@
 #endif
 
 namespace klee {
-class Executor;
+	class Executor;
 
-class SymbolicError {
+	class SymbolicError {
 
-	std::map<Expr *, ref<Expr> > valueErrorMap;
+		std::map<Expr *, ref<Expr> > valueErrorMap;
 
-	std::map<const Array *, const Array *> arrayErrorArrayMap;
+		std::map<const Array *, const Array *> arrayErrorArrayMap;
 
-	ref<Expr> getError(Executor *executor, Expr *value);
+		ref<Expr> getError(Executor *executor, Expr *value);
 
-	ArrayCache errorArrayCache;
+		ArrayCache errorArrayCache;
 
-public:
-	SymbolicError() {
-	}
+	public:
+		SymbolicError() {
+		}
 
-	~SymbolicError();
+		~SymbolicError();
 
-	void propagateError(Executor *executor, llvm::Instruction *instr,
-			ref<Expr> result, std::vector<ref<Expr> > &arguments);
-};
+		void propagateError(Executor *executor, llvm::Instruction *instr,
+				ref<Expr> result, std::vector<ref<Expr> > &arguments);
+	};
 }
 
 #endif /* KLEE_SYMBOLICERROR_H_ */
