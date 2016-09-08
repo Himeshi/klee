@@ -72,8 +72,6 @@ ref<Expr> SymbolicError::getError(Executor *executor, Expr *value) {
 }
 
 SymbolicError::~SymbolicError() {
-	delete &currentError;
-	delete &errorArrayCache;
 }
 
 ref<Expr> SymbolicError::getCurrentError() {

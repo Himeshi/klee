@@ -98,8 +98,8 @@ ExecutionState::~ExecutionState() {
 
   while (!stack.empty()) popFrame();
 
-  /*if (symbolicError)
-	  delete symbolicError;*/
+  if (symbolicError)
+	  delete symbolicError;
 }
 
 ExecutionState::ExecutionState(const ExecutionState& state):
