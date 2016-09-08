@@ -1978,6 +1978,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = URemExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
  
@@ -1986,6 +1988,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = SRemExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
 
@@ -1994,6 +1998,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = AndExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
 
@@ -2002,6 +2008,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = OrExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
 
@@ -2010,6 +2018,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = XorExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
 
@@ -2018,6 +2028,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = ShlExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
 
@@ -2026,6 +2038,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = LShrExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
 
@@ -2034,6 +2048,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = AShrExpr::create(left, right);
     bindLocal(ki, state, result);
+    llvm::errs()<<"Error is not propagated for instruction ";
+    llvm::errs()<<ki->inst->getName();
     break;
   }
 
