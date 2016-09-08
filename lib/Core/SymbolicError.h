@@ -30,11 +30,15 @@ namespace klee {
 
 		ArrayCache errorArrayCache;
 
+		ref<Expr> currentError;
+
 	public:
 		SymbolicError() {
 		}
 
 		~SymbolicError();
+
+		ref<Expr> getCurrentError();
 
 		void propagateError(Executor *executor, llvm::Instruction *instr,
 				ref<Expr> result, std::vector<ref<Expr> > &arguments);

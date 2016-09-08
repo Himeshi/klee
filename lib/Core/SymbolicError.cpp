@@ -72,8 +72,12 @@ ref<Expr> SymbolicError::getError(Executor *executor, Expr *value) {
 }
 
 SymbolicError::~SymbolicError() {
-	delete &arrayErrorArrayMap;
-	delete &valueErrorMap;
+	delete &currentError;
+	delete &errorArrayCache;
+}
+
+ref<Expr> SymbolicError::getCurrentError() {
+	return currentError;
 }
 
 void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
@@ -89,6 +93,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 			rError = getError(executor, arguments[1].get());
 		}
 		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
+		currentError = valueErrorMap[result.get()];
 		break;
 	}
 	case llvm::Instruction::Sub: {
@@ -101,6 +106,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 			rError = getError(executor, arguments[1].get());
 		}
 		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
+		currentError = valueErrorMap[result.get()];
 		break;
 	}
 	case llvm::Instruction::Mul: {
@@ -123,6 +129,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 				fractionalErrorLeft, fractionalErrorRight);
 		valueErrorMap[result.get()] = MulExpr::create(addedFractionalError,
 				result.get());
+		currentError = valueErrorMap[result.get()];
 		break;
 	}
 	case llvm::Instruction::UDiv: {
@@ -145,6 +152,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 				fractionalErrorLeft, fractionalErrorRight);
 		valueErrorMap[result.get()] = MulExpr::create(addedFractionalError,
 				result.get());
+		currentError = valueErrorMap[result.get()];
 		break;
 	}
 	case llvm::Instruction::SDiv: {
@@ -167,6 +175,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 				fractionalErrorLeft, fractionalErrorRight);
 		valueErrorMap[result.get()] = MulExpr::create(addedFractionalError,
 				result.get());
+		currentError = valueErrorMap[result.get()];
 		break;
 	}
 	}
