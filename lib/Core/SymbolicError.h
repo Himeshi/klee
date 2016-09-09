@@ -34,6 +34,10 @@ namespace klee {
 
 	public:
 		SymbolicError() {
+			currentError = ConstantExpr::alloc(0, Expr::Int8);
+		}
+
+		SymbolicError(SymbolicError& symErr) {
 		}
 
 		~SymbolicError();
