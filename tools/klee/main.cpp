@@ -486,6 +486,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
       m_interpreter->getConstraintLog(state, constraints,Interpreter::KQUERY);
       llvm::raw_ostream *f = openTestFile("pc", id);
       *f << constraints;
+      *f << "\nSymbolic Error:\n";
       *f << state.symbolicError->getCurrentError();
       delete f;
     }
