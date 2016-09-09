@@ -98,8 +98,8 @@ ExecutionState::~ExecutionState() {
 
   while (!stack.empty()) popFrame();
 
-  /*if (symbolicError)
-	  delete symbolicError;*/
+  if (symbolicError)
+	  delete symbolicError;
 }
 
 ExecutionState::ExecutionState(const ExecutionState& state):
@@ -126,7 +126,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     ptreeNode(state.ptreeNode),
     symbolics(state.symbolics),
     arrayNames(state.arrayNames),
-	symbolicError(state.symbolicError)
+	symbolicError(new SymbolicError(*(state.symbolicError)))
 {
   for (unsigned int i=0; i<symbolics.size(); i++)
     symbolics[i].first->refCount++;
