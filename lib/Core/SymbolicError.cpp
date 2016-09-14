@@ -20,7 +20,7 @@ ref<Expr> SymbolicError::getError(Executor *executor, Expr *value) {
 			const Array *errorArray = arrayErrorArrayMap[concatArray];
 			if (!errorArray) {
 				std::string errorName(
-						"__error__of__"
+						"_fractional_error_"
 								+ llvm::dyn_cast<ReadExpr>(
 										concatExpr->getLeft())->updates.root->name);
 				const Array *newErrorArray = errorArrayCache.CreateArray(
@@ -44,7 +44,7 @@ ref<Expr> SymbolicError::getError(Executor *executor, Expr *value) {
 			const Array *errorArray = arrayErrorArrayMap[readArray];
 			if (!errorArray) {
 				std::string errorName(
-						"__error__of__" + readExpr->updates.root->name);
+						"_fractional_error_" + readExpr->updates.root->name);
 				const Array *newErrorArray = errorArrayCache.CreateArray(
 						errorName, Expr::Int8);
 				UpdateList ul(newErrorArray, 0);
@@ -90,7 +90,17 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
+		ref<Expr> extendedLeft = ZExtExpr::create(lError,
+				arguments[0]->getWidth());
+		ref<Expr> extendedRight = ZExtExpr::create(rError,
+				arguments[1]->getWidth());
+		ref<Expr> errorLeft = MulExpr::create(extendedLeft.get(),
+				arguments[0].get());
+		ref<Expr> errorRight = MulExpr::create(extendedRight.get(),
+				arguments[1].get());
+		ref<Expr> resultError = AddExpr::create(errorLeft, errorRight);
+		valueErrorMap[result.get()] = UDivExpr::create(resultError,
+				result.get());
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
@@ -103,7 +113,17 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
+		ref<Expr> extendedLeft = ZExtExpr::create(lError,
+				arguments[0]->getWidth());
+		ref<Expr> extendedRight = ZExtExpr::create(rError,
+				arguments[1]->getWidth());
+		ref<Expr> errorLeft = MulExpr::create(extendedLeft.get(),
+				arguments[0].get());
+		ref<Expr> errorRight = MulExpr::create(extendedRight.get(),
+				arguments[1].get());
+		ref<Expr> resultError = AddExpr::create(errorLeft, errorRight);
+		valueErrorMap[result.get()] = UDivExpr::create(resultError,
+				result.get());
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
@@ -116,17 +136,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		// error in multiplication = (fractional error of left + fractional error of right) * result of multiplication
-		ref<Expr> extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
-		ref<Expr> extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
-		ref<Expr> fractionalErrorLeft = UDivExpr::create(arguments[0].get(),
-				extendedLeft);
-		ref<Expr> fractionalErrorRight = UDivExpr::create(arguments[1].get(),
-				extendedRight);
-		ref<Expr> addedFractionalError = AddExpr::create(
-				fractionalErrorLeft, fractionalErrorRight);
-		valueErrorMap[result.get()] = MulExpr::create(addedFractionalError,
-				result.get());
+		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
@@ -139,17 +149,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		// error in multiplication = (fractional error of left + fractional error of right) * result of multiplication
-		ref<Expr> extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
-		ref<Expr> extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
-		ref<Expr> fractionalErrorLeft = UDivExpr::create(arguments[0].get(),
-				extendedLeft);
-		ref<Expr> fractionalErrorRight = UDivExpr::create(arguments[1].get(),
-				extendedRight);
-		ref<Expr> addedFractionalError = AddExpr::create(
-				fractionalErrorLeft, fractionalErrorRight);
-		valueErrorMap[result.get()] = MulExpr::create(addedFractionalError,
-				result.get());
+		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
@@ -162,17 +162,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		// error in multiplication = (fractional error of left + fractional error of right) * result of multiplication
-		ref<Expr> extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
-		ref<Expr> extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
-		ref<Expr> fractionalErrorLeft = UDivExpr::create(arguments[0].get(),
-				extendedLeft);
-		ref<Expr> fractionalErrorRight = UDivExpr::create(arguments[1].get(),
-				extendedRight);
-		ref<Expr> addedFractionalError = AddExpr::create(
-				fractionalErrorLeft, fractionalErrorRight);
-		valueErrorMap[result.get()] = MulExpr::create(addedFractionalError,
-				result.get());
+		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
