@@ -90,10 +90,15 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		ref<Expr> extendedLeft = ZExtExpr::create(lError,
-				arguments[0]->getWidth());
-		ref<Expr> extendedRight = ZExtExpr::create(rError,
-				arguments[1]->getWidth());
+
+		ref<Expr> extendedLeft = lError;
+		if (lError->getWidth() != arguments[0]->getWidth()) {
+			extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
+		}
+		ref<Expr> extendedRight = rError;
+		if (rError->getWidth() != arguments[1]->getWidth()) {
+			extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
+		}
 		ref<Expr> errorLeft = MulExpr::create(extendedLeft.get(),
 				arguments[0].get());
 		ref<Expr> errorRight = MulExpr::create(extendedRight.get(),
@@ -113,10 +118,16 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		ref<Expr> extendedLeft = ZExtExpr::create(lError,
-				arguments[0]->getWidth());
-		ref<Expr> extendedRight = ZExtExpr::create(rError,
-				arguments[1]->getWidth());
+
+		ref<Expr> extendedLeft = lError;
+		if (lError->getWidth() != arguments[0]->getWidth()) {
+			extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
+		}
+		ref<Expr> extendedRight = rError;
+		if (rError->getWidth() != arguments[1]->getWidth()) {
+			extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
+		}
+
 		ref<Expr> errorLeft = MulExpr::create(extendedLeft.get(),
 				arguments[0].get());
 		ref<Expr> errorRight = MulExpr::create(extendedRight.get(),
@@ -125,6 +136,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		valueErrorMap[result.get()] = UDivExpr::create(resultError,
 				result.get());
 		currentError = valueErrorMap[result.get()];
+		break;
 		break;
 	}
 	case llvm::Instruction::Mul: {
@@ -136,7 +148,18 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
+
+		ref<Expr> extendedLeft = lError;
+		if (lError->getWidth() != arguments[0]->getWidth()) {
+			extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
+		}
+		ref<Expr> extendedRight = rError;
+		if (rError->getWidth() != arguments[1]->getWidth()) {
+			extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
+		}
+
+		valueErrorMap[result.get()] = AddExpr::create(extendedLeft.get(),
+				extendedRight.get());
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
@@ -149,7 +172,18 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
+
+		ref<Expr> extendedLeft = lError;
+		if (lError->getWidth() != arguments[0]->getWidth()) {
+			extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
+		}
+		ref<Expr> extendedRight = rError;
+		if (rError->getWidth() != arguments[1]->getWidth()) {
+			extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
+		}
+
+		valueErrorMap[result.get()] = AddExpr::create(extendedLeft.get(),
+				extendedRight.get());
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
@@ -162,7 +196,18 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		if (!rError.get()) {
 			rError = getError(executor, arguments[1].get());
 		}
-		valueErrorMap[result.get()] = AddExpr::create(lError, rError);
+
+		ref<Expr> extendedLeft = lError;
+		if (lError->getWidth() != arguments[0]->getWidth()) {
+			extendedLeft = ZExtExpr::create(lError, arguments[0]->getWidth());
+		}
+		ref<Expr> extendedRight = rError;
+		if (rError->getWidth() != arguments[1]->getWidth()) {
+			extendedRight = ZExtExpr::create(rError, arguments[1]->getWidth());
+		}
+
+		valueErrorMap[result.get()] = AddExpr::create(extendedLeft.get(),
+				extendedRight.get());
 		currentError = valueErrorMap[result.get()];
 		break;
 	}
