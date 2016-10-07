@@ -11,7 +11,7 @@ using namespace klee;
 
 ref<Expr> SymbolicError::getError(Executor *executor, Expr *value) {
 	ref<Expr> errorAmount = valueErrorMap[value];
-
+llvm::errs()<<"In get error\n";
 	if (!errorAmount.get()) {
 		if (llvm::isa<ConcatExpr>(*value)) {
 			ConcatExpr *concatExpr = llvm::dyn_cast<ConcatExpr>(value);
@@ -62,7 +62,44 @@ ref<Expr> SymbolicError::getError(Executor *executor, Expr *value) {
 
 		} else if (llvm::isa<ConstantExpr>(value)) {
 			return ConstantExpr::alloc(0, Expr::Int8);
-
+		} else if (llvm::isa<SExtExpr>(value)) {
+			llvm::errs() << "In sext\n";
+			value->dump();
+			SExtExpr *sExtExpr = llvm::dyn_cast<SExtExpr>(value);
+			ConcatExpr *concatExpr = llvm::dyn_cast<ConcatExpr>(
+					sExtExpr->getKid(0));
+			llvm::errs() << "In 1\n";
+			const Array *concatArray;
+			if (llvm::isa<ReadExpr>(concatExpr->getLeft())) {
+				llvm::errs()<<"In left";
+				concatArray =
+						llvm::dyn_cast<ReadExpr>(concatExpr->getLeft())->updates.root;
+			} else {
+				concatArray =
+						llvm::dyn_cast<ReadExpr>(concatExpr->getRight())->updates.root;
+			}
+			concatExpr->getLeft()->dump();
+			llvm::errs() << "In 2\n";
+			const Array *errorArray = arrayErrorArrayMap[concatArray];
+			if (!errorArray) {
+				std::string errorName(
+						"_fractional_error_"
+								+ llvm::dyn_cast<ReadExpr>(
+										concatExpr->getLeft())->updates.root->name);
+				const Array *newErrorArray = errorArrayCache.CreateArray(
+						errorName, Expr::Int8);
+				UpdateList ul(newErrorArray, 0);
+				arrayErrorArrayMap[concatArray] = newErrorArray;
+				ref<Expr> newReadExpr = ReadExpr::create(ul,
+						ConstantExpr::alloc(0, Expr::Int8));
+				valueErrorMap[value] = newReadExpr;
+				return newReadExpr;
+			}
+			UpdateList ul(errorArray, 0);
+			ref<Expr> newReadExpr = ReadExpr::create(ul,
+					ConstantExpr::alloc(0, Expr::Int8));
+			valueErrorMap[value] = newReadExpr;
+			return newReadExpr;
 		} else {
 			assert(!"malformed expression");
 		}
