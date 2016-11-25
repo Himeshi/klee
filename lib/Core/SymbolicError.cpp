@@ -66,40 +66,12 @@ llvm::errs()<<"In get error\n";
 			llvm::errs() << "In sext\n";
 			value->dump();
 			SExtExpr *sExtExpr = llvm::dyn_cast<SExtExpr>(value);
-			ConcatExpr *concatExpr = llvm::dyn_cast<ConcatExpr>(
-					sExtExpr->getKid(0));
-			llvm::errs() << "In 1\n";
-			const Array *concatArray;
-			if (llvm::isa<ReadExpr>(concatExpr->getLeft())) {
-				llvm::errs()<<"In left";
-				concatArray =
-						llvm::dyn_cast<ReadExpr>(concatExpr->getLeft())->updates.root;
-			} else {
-				concatArray =
-						llvm::dyn_cast<ReadExpr>(concatExpr->getRight())->updates.root;
-			}
-			concatExpr->getLeft()->dump();
-			llvm::errs() << "In 2\n";
-			const Array *errorArray = arrayErrorArrayMap[concatArray];
-			if (!errorArray) {
-				std::string errorName(
-						"_fractional_error_"
-								+ llvm::dyn_cast<ReadExpr>(
-										concatExpr->getLeft())->updates.root->name);
-				const Array *newErrorArray = errorArrayCache.CreateArray(
-						errorName, Expr::Int8);
-				UpdateList ul(newErrorArray, 0);
-				arrayErrorArrayMap[concatArray] = newErrorArray;
-				ref<Expr> newReadExpr = ReadExpr::create(ul,
-						ConstantExpr::alloc(0, Expr::Int8));
-				valueErrorMap[value] = newReadExpr;
-				return newReadExpr;
-			}
-			UpdateList ul(errorArray, 0);
-			ref<Expr> newReadExpr = ReadExpr::create(ul,
-					ConstantExpr::alloc(0, Expr::Int8));
-			valueErrorMap[value] = newReadExpr;
-			return newReadExpr;
+			return getError(executor, sExtExpr->getKid(0).get());
+		} else if (llvm::isa<AddExpr>(value)) {
+			ref<Expr> lhsError = getError(executor, value->getKid(0).get());
+			ref<Expr> rhsError = getError(executor, value->getKid(1).get());
+			// TODO: Add correct error expression here
+			return AddExpr::create(lhsError, rhsError);
 		} else {
 			assert(!"malformed expression");
 		}
@@ -144,6 +116,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		valueErrorMap[result.get()] = UDivExpr::create(resultError,
 				result.get());
 		currentError = valueErrorMap[result.get()];
+		currentError->dump();
 		break;
 	}
 	case llvm::Instruction::Sub: {
@@ -173,7 +146,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		valueErrorMap[result.get()] = UDivExpr::create(resultError,
 				result.get());
 		currentError = valueErrorMap[result.get()];
-		break;
+		currentError->dump();
 		break;
 	}
 	case llvm::Instruction::Mul: {
@@ -198,6 +171,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		valueErrorMap[result.get()] = AddExpr::create(extendedLeft.get(),
 				extendedRight.get());
 		currentError = valueErrorMap[result.get()];
+		currentError->dump();
 		break;
 	}
 	case llvm::Instruction::UDiv: {
@@ -222,6 +196,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		valueErrorMap[result.get()] = AddExpr::create(extendedLeft.get(),
 				extendedRight.get());
 		currentError = valueErrorMap[result.get()];
+		currentError->dump();
 		break;
 	}
 	case llvm::Instruction::SDiv: {
@@ -246,6 +221,7 @@ void SymbolicError::propagateError(Executor *executor, llvm::Instruction *instr,
 		valueErrorMap[result.get()] = AddExpr::create(extendedLeft.get(),
 				extendedRight.get());
 		currentError = valueErrorMap[result.get()];
+		currentError->dump();
 		break;
 	}
 	}
