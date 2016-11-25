@@ -1914,7 +1914,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     // Arithmetic / logical
 
   case Instruction::Add: {
-    ref<Expr> left = eval(ki, 0, state).value;
+    llvm::errs()<<"Add executed\n";
+	  ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = AddExpr::create(left, right);
     bindLocal(ki, state, result);
@@ -1938,7 +1939,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   }
  
   case Instruction::Mul: {
-    ref<Expr> left = eval(ki, 0, state).value;
+    llvm::errs()<<"Mul executed\n";
+	  ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = MulExpr::create(left, right);
     bindLocal(ki, state, result);
