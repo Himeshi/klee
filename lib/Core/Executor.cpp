@@ -1939,8 +1939,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(left);
     arguments.push_back(right);
-    state.symbolicError->propagateError(this, i, result, arguments);
-    bindLocal(ki, state, result, state.symbolicError->getCurrentError());
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, i, result, arguments));
 
     break;
   }
@@ -1953,9 +1953,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(left);
     arguments.push_back(right);
-    state.symbolicError->propagateError(this, i, result, arguments);
 
-    bindLocal(ki, state, result, state.symbolicError->getCurrentError());
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, i, result, arguments));
     break;
   }
  
@@ -1968,8 +1968,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(left);
     arguments.push_back(right);
-    state.symbolicError->propagateError(this, i, result, arguments);
-    bindLocal(ki, state, result, state.symbolicError->getCurrentError());
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, i, result, arguments));
     break;
   }
 
@@ -1981,8 +1982,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(left);
     arguments.push_back(right);
-    state.symbolicError->propagateError(this, i, result, arguments);
-    bindLocal(ki, state, result, state.symbolicError->getCurrentError());
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, i, result, arguments));
     break;
   }
 
@@ -1994,8 +1996,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(left);
     arguments.push_back(right);
-    state.symbolicError->propagateError(this, i, result, arguments);
-    bindLocal(ki, state, result, state.symbolicError->getCurrentError());
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, i, result, arguments));
     break;
   }
 
