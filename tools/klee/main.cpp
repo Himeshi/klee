@@ -483,11 +483,12 @@ void KleeHandler::processTestCase(const ExecutionState &state,
     }
 
     // Output the symbolic error
-    llvm::raw_ostream *f = openTestFile("fp_error", id);
-    *f << "Symbolic Error: ";
-    *f << state.symbolicError->getCurrentError();
-    *f << "\n";
-    delete f;
+    std::string errors = state.symbolicError->getOutputString();
+    if (!errors.empty()) {
+      llvm::raw_ostream *f = openTestFile("fp_error", id);
+      *f << errors;
+      delete f;
+    }
 
     if (errorMessage || WriteKQueries) {
       std::string constraints;
@@ -764,6 +765,7 @@ static const char *modelledExternals[] = {
   "klee_make_symbolic",
   "klee_mark_global",
   "klee_merge",
+  "klee_output_error",
   "klee_prefer_cex",
   "klee_posix_prefer_cex",
   "klee_print_expr",

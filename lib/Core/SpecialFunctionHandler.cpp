@@ -85,9 +85,8 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   addDNR("_exit", handleExit),
   { "exit", &SpecialFunctionHandler::handleExit, true, false, true },
   addDNR("klee_abort", handleAbort),
-  addDNR("klee_silent_exit", handleSilentExit),  
+  addDNR("klee_silent_exit", handleSilentExit),
   addDNR("klee_report_error", handleReportError),
-
   add("calloc", handleCalloc, true),
   add("free", handleFree, false),
   add("klee_assume", handleAssume, false),
@@ -105,6 +104,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("klee_make_symbolic", handleMakeSymbolic, false),
   add("klee_mark_global", handleMarkGlobal, false),
   add("klee_merge", handleMerge, false),
+  add("klee_output_error", handleOutputError, false),
   add("klee_prefer_cex", handlePreferCex, false),
   add("klee_posix_prefer_cex", handlePosixPreferCex, false),
   add("klee_print_expr", handlePrintExpr, false),
@@ -141,7 +141,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("__ubsan_handle_divrem_overflow", handleDivRemOverflow, false),
 
 #undef addDNR
-#undef add  
+#undef add
 };
 
 SpecialFunctionHandler::const_iterator SpecialFunctionHandler::begin() {
@@ -426,6 +426,16 @@ void SpecialFunctionHandler::handleIsSymbolic(ExecutionState &state,
   executor.bindLocal(target, state, 
                      ConstantExpr::create(!isa<ConstantExpr>(arguments[0]),
                                           Expr::Int32));
+}
+
+void
+SpecialFunctionHandler::handleOutputError(ExecutionState &state,
+                                          KInstruction *target,
+                                          std::vector<ref<Expr> > &arguments) {
+  assert(arguments.size() == 1 &&
+         "invalid number of arguments to klee_output_error");
+
+  state.symbolicError->addOutput(target->inst);
 }
 
 void SpecialFunctionHandler::handlePreferCex(ExecutionState &state,
