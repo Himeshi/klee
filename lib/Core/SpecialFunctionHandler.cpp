@@ -423,9 +423,10 @@ void SpecialFunctionHandler::handleIsSymbolic(ExecutionState &state,
                                 std::vector<ref<Expr> > &arguments) {
   assert(arguments.size()==1 && "invalid number of arguments to klee_is_symbolic");
 
-  executor.bindLocal(target, state, 
-                     ConstantExpr::create(!isa<ConstantExpr>(arguments[0]),
-                                          Expr::Int32));
+  executor.bindLocal(
+      target, state,
+      ConstantExpr::create(!isa<ConstantExpr>(arguments[0]), Expr::Int32),
+      ConstantExpr::create(0, Expr::Int8));
 }
 
 void
@@ -561,7 +562,8 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
         target, *it->second,
         ConstantExpr::create(it->first.first->size,
                              executor.kmodule->targetData->getTypeSizeInBits(
-                                 target->inst->getType())));
+                                 target->inst->getType())),
+        ConstantExpr::create(0, Expr::Int8));
   }
 }
 
@@ -571,8 +573,8 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
   // XXX should type check args
   assert(arguments.size()==0 &&
          "invalid number of arguments to klee_get_errno");
-  executor.bindLocal(target, state,
-                     ConstantExpr::create(errno, Expr::Int32));
+  executor.bindLocal(target, state, ConstantExpr::create(errno, Expr::Int32),
+                     ConstantExpr::create(0, Expr::Int8));
 }
 
 void SpecialFunctionHandler::handleCalloc(ExecutionState &state,
