@@ -55,6 +55,8 @@ extern llvm::cl::opt<CoreSolverType> CoreSolverToUse;
 
 extern llvm::cl::opt<CoreSolverType> DebugCrossCheckCoreSolverWith;
 
+extern llvm::cl::opt<bool> DebugFPError;
+
 #ifdef ENABLE_METASMT
 
 enum MetaSMTBackendType

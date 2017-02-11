@@ -2894,14 +2894,18 @@ void Executor::run(ExecutionState &initialState) {
     KInstruction *ki = state.pc;
     stepInstruction(state);
 
-    llvm::errs() << "\n------------------------------------\n";
-    llvm::errs() << "Executing: ";
-    ki->inst->dump();
+    if (DebugFPError) {
+      llvm::errs() << "\n------------------------------------\n";
+      llvm::errs() << "Executing: ";
+      ki->inst->dump();
+    }
 
     executeInstruction(state, ki);
 
-    llvm::errs() << "Symbolic error result:\n";
-    state.symbolicError->dump();
+    if (DebugFPError) {
+      llvm::errs() << "SYMBOLIC ERROR:\n";
+      state.symbolicError->dump();
+    }
 
     processTimers(&state, MaxInstructionTime);
 
