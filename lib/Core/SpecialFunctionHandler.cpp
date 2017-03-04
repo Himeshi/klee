@@ -436,7 +436,7 @@ SpecialFunctionHandler::handleBoundError(ExecutionState &state,
   assert(arguments.size() == 2 &&
          "invalid number of arguments to klee_bound_error");
 
-  state.symbolicError->addOutput(target->inst);
+  state.symbolicError->outputErrorBound(target->inst);
 }
 
 void SpecialFunctionHandler::handlePreferCex(ExecutionState &state,
