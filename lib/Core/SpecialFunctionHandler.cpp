@@ -475,7 +475,7 @@ SpecialFunctionHandler::handleTrackError(ExecutionState &state,
 
   executor.terminateStateOnError(
       state, "first argument of track_error must be a constant address",
-      "user.err");
+      Executor::User);
 }
 
 void SpecialFunctionHandler::handlePreferCex(ExecutionState &state,
