@@ -3419,7 +3419,11 @@ void Executor::run(ExecutionState &initialState) {
       ki->inst->dump();
     }
 
-    executeInstruction(state, ki);
+    if (state.symbolicError->addBasicBlock(ki->inst)) {
+      terminateStateEarly(state, "Cycle detected");
+    } else {
+      executeInstruction(state, ki);
+    }
 
     if (DebugPrecision) {
       llvm::errs() << "SYMBOLIC ERROR:\n";

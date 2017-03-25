@@ -10,6 +10,7 @@
 #ifndef KLEE_SYMBOLICERROR_H_
 #define KLEE_SYMBOLICERROR_H_
 
+#include "LoopDetector.h"
 #include "klee/Expr.h"
 #include "klee/util/ArrayCache.h"
 
@@ -37,12 +38,26 @@ class SymbolicError {
 
   std::map<uintptr_t, ref<Expr> > storedError;
 
-public:
-  SymbolicError() {}
+  LoopDetector *detector;
 
-  SymbolicError(SymbolicError &symErr) { storedError = symErr.storedError; }
+public:
+  SymbolicError() : detector(new LoopDetector()) {}
+
+  SymbolicError(SymbolicError &symErr)
+      : detector(new LoopDetector(*(symErr.detector))) {
+    storedError = symErr.storedError;
+    // FIXME: Simple copy for now.
+    valueErrorMap = symErr.valueErrorMap;
+  }
 
   ~SymbolicError();
+
+  bool addBasicBlock(llvm::Instruction *inst) {
+    if (llvm::BasicBlock *bb = inst->getParent()) {
+      return detector->addBasicBlock(bb);
+    }
+    return false;
+  }
 
   void outputErrorBound(llvm::Instruction *inst, double bound);
 
