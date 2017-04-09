@@ -35,16 +35,22 @@
 using namespace klee;
 
 bool AnalysisWrapper::runOnModule(llvm::Module &m) {
-  const llvm::LoopInfo &LI = getAnalysis<llvm::LoopInfo>();
-  llvm::ScalarEvolution &SE = getAnalysis<llvm::ScalarEvolution>();
-
   for (llvm::Module::iterator func = m.begin(), fe = m.end(); func != fe;
        ++func) {
+
+    if (func->isDeclaration())
+      continue;
+
+    const llvm::LoopInfo &LI = getAnalysis<llvm::LoopInfo>(*func);
+    llvm::ScalarEvolution &SE = getAnalysis<llvm::ScalarEvolution>(*func);
+
     for (llvm::Function::iterator bb = func->begin(), be = func->end();
          bb != be; ++bb) {
       const llvm::Loop *l = LI.getLoopFor(bb);
       if (l) {
-        llvm::errs() << "Trip count: " << SE.getBackedgeTakenCount(l);
+        llvm::errs() << "Trip count: ";
+        SE.getBackedgeTakenCount(l)->print(llvm::errs());
+        llvm::errs() << "\n";
       }
     }
   }
@@ -52,10 +58,9 @@ bool AnalysisWrapper::runOnModule(llvm::Module &m) {
 }
 
 void AnalysisWrapper::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequiredTransitive<llvm::ScalarEvolution>();
-  AU.addRequiredTransitive<llvm::LoopInfo>();
-  AU.addPreserved<llvm::ScalarEvolution>();
-  AU.addPreserved<llvm::LoopInfo>();
+  AU.setPreservesAll();
+  AU.addRequired<llvm::LoopInfo>();
+  AU.addRequired<llvm::ScalarEvolution>();
 }
 
 char AnalysisWrapper::ID = 0;
