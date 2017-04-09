@@ -30,6 +30,12 @@
 #include <set>
 
 namespace klee {
+
+/// \brief A wrapper to LLVM analyses for computing loop trip counts.
+///
+/// References:
+/// http://lists.llvm.org/pipermail/llvm-dev/2011-March/038502.html
+/// https://groups.google.com/forum/#!topic/llvm-dev/1oNNBPMSqBg
 struct AnalysisWrapper : public llvm::ModulePass {
   static char ID;
 
@@ -39,6 +45,5 @@ struct AnalysisWrapper : public llvm::ModulePass {
 
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 };
-
 }
 #endif /* ANALYISWRAPPER_H_ */
