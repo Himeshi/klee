@@ -40,7 +40,5 @@ struct AnalysisWrapper : public llvm::ModulePass {
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 };
 
-static llvm::RegisterPass<AnalysisWrapper>
-X("analysis-wrapper", "Calls all necessary LLVM analyses and transforms");
 }
 #endif /* ANALYISWRAPPER_H_ */

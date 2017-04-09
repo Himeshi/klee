@@ -60,3 +60,5 @@ void AnalysisWrapper::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 char AnalysisWrapper::ID = 0;
 
+static llvm::RegisterPass<AnalysisWrapper>
+X("analysis-wrapper", "Calls all necessary LLVM analyses and transforms");
