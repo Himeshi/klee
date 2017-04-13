@@ -51,6 +51,8 @@ bool AnalysisWrapper::runOnModule(llvm::Module &m) {
         llvm::errs() << "Trip count: ";
         SE.getBackedgeTakenCount(l)->print(llvm::errs());
         llvm::errs() << "\n";
+        llvm::errs() << "Loop:\n";
+        l->print(llvm::errs());
       }
     }
   }
