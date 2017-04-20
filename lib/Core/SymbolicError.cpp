@@ -127,6 +127,11 @@ ref<Expr> SymbolicError::propagateError(Executor *executor,
                                         ref<Expr> result,
                                         std::vector<ref<Expr> > &arguments) {
   switch (instr->getOpcode()) {
+  case llvm::Instruction::PHI: {
+    ref<Expr> error = arguments.at(0);
+    valueErrorMap[instr] = error;
+    return error;
+  }
   case llvm::Instruction::FAdd:
   case llvm::Instruction::Add: {
     llvm::Value *lOp = instr->getOperand(0);
