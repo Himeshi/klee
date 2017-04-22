@@ -42,12 +42,14 @@ struct TripCounter : public llvm::ModulePass {
   static char ID;
 
 private:
-  std::map<llvm::BasicBlock *, const llvm::SCEV *> tripCount;
+  std::map<llvm::BasicBlock *, int64_t> tripCount;
 
   void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
 
 public:
   TripCounter() : llvm::ModulePass(ID) {}
+
+  bool getTripCount(llvm::BasicBlock *bb, int64_t &count) const;
 
   virtual bool runOnModule(llvm::Module &m);
 

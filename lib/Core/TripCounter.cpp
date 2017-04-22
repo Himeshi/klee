@@ -15,6 +15,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 
 #if LLVM_VERSION_CODE > LLVM_VERSION(3, 2)
 #include "llvm/IR/Constants.h"
@@ -36,12 +37,25 @@ using namespace klee;
 void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
                                   const llvm::Loop *l) {
   const std::vector<llvm::Loop *> &v = l->getSubLoops();
-  tripCount[l->getHeader()] = se.getBackedgeTakenCount(l);
+  const llvm::SCEV *scev = se.getBackedgeTakenCount(l);
+  if (const llvm::SCEVConstant *scevConstant =
+          llvm::dyn_cast<llvm::SCEVConstant>(scev)) {
+    tripCount[l->getHeader()] = scevConstant->getValue()->getSExtValue();
+  }
 
   for (std::vector<llvm::Loop *>::const_iterator it = v.begin(), ie = v.end();
        it != ie; ++it) {
     analyzeSubLoops(se, *it);
   }
+}
+
+bool TripCounter::getTripCount(llvm::BasicBlock *bb, int64_t &count) const {
+  std::map<llvm::BasicBlock *, int64_t>::iterator it = tripCount.find(bb);
+  if (it != tripCount.end()) {
+    count = it->second;
+    return true;
+  }
+  return false;
 }
 
 bool TripCounter::runOnModule(llvm::Module &m) {
