@@ -1414,7 +1414,8 @@ int main(int argc, char **argv, char **envp) {
   handler->getInfoStream() << "PID: " << getpid() << "\n";
 
   llvm::PassManager PM;
-  PM.add(new TripCounter());
+  TripCounter::instance = new TripCounter();
+  PM.add(TripCounter::instance);
   PM.run(*mainModule);
 
   const Module *finalModule =

@@ -41,6 +41,8 @@ namespace klee {
 struct TripCounter : public llvm::ModulePass {
   static char ID;
 
+  static TripCounter *instance;
+
 private:
   std::map<llvm::BasicBlock *, int64_t> tripCount;
 

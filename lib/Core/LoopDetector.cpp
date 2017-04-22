@@ -6,6 +6,8 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
+
+#include "klee/Internal/Module/TripCounter.h"
 #include "LoopDetector.h"
 
 using namespace klee;
@@ -13,6 +15,12 @@ using namespace klee;
 bool LoopDetector::addBasicBlock(llvm::BasicBlock *bb) {
   if (lastBasicBlock == bb)
     return false;
+
+  int64_t tripCount;
+  if (TripCounter::instance &&
+      TripCounter::instance->getTripCount(bb, tripCount)) {
+    llvm::errs() << "TRIP COUNT FOUND: " << tripCount << "\n";
+  }
 
   lastBasicBlock = bb;
 

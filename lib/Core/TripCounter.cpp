@@ -34,6 +34,8 @@
 
 using namespace klee;
 
+TripCounter *TripCounter::instance = 0;
+
 void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
                                   const llvm::Loop *l) {
   const std::vector<llvm::Loop *> &v = l->getSubLoops();
@@ -50,7 +52,7 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
 }
 
 bool TripCounter::getTripCount(llvm::BasicBlock *bb, int64_t &count) const {
-  std::map<llvm::BasicBlock *, int64_t>::iterator it = tripCount.find(bb);
+  std::map<llvm::BasicBlock *, int64_t>::const_iterator it = tripCount.find(bb);
   if (it != tripCount.end()) {
     count = it->second;
     return true;
