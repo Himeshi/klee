@@ -16,7 +16,6 @@
 #include "klee/Config/Version.h"
 #include "klee/Internal/ADT/KTest.h"
 #include "klee/Internal/ADT/TreeStream.h"
-#include "klee/Internal/Module/AnalysisWrapper.h"
 #include "klee/Internal/Support/Debug.h"
 #include "klee/Internal/Support/ModuleUtil.h"
 #include "klee/Internal/System/Time.h"
@@ -26,6 +25,8 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/PassManager.h"
+
+#include "../../include/klee/Internal/Module/TripCounter.h"
 #if LLVM_VERSION_CODE > LLVM_VERSION(3, 2)
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
@@ -1413,7 +1414,7 @@ int main(int argc, char **argv, char **envp) {
   handler->getInfoStream() << "PID: " << getpid() << "\n";
 
   llvm::PassManager PM;
-  PM.add(new AnalysisWrapper());
+  PM.add(new TripCounter());
   PM.run(*mainModule);
 
   const Module *finalModule =

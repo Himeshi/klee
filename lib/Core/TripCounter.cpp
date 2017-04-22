@@ -7,8 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../../include/klee/Internal/Module/TripCounter.h"
+
 #include "klee/Config/Version.h"
-#include "klee/Internal/Module/AnalysisWrapper.h"
 
 #define DEBUG_TYPE "analysis-wrapper"
 
@@ -34,7 +35,7 @@
 
 using namespace klee;
 
-bool AnalysisWrapper::runOnModule(llvm::Module &m) {
+bool TripCounter::runOnModule(llvm::Module &m) {
   for (llvm::Module::iterator func = m.begin(), fe = m.end(); func != fe;
        ++func) {
 
@@ -59,13 +60,13 @@ bool AnalysisWrapper::runOnModule(llvm::Module &m) {
   return false;
 }
 
-void AnalysisWrapper::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void TripCounter::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<llvm::LoopInfo>();
   AU.addRequired<llvm::ScalarEvolution>();
 }
 
-char AnalysisWrapper::ID = 0;
+char TripCounter::ID = 0;
 
-static llvm::RegisterPass<AnalysisWrapper>
+static llvm::RegisterPass<TripCounter>
 X("analysis-wrapper", "Calls all necessary LLVM analyses and transforms");

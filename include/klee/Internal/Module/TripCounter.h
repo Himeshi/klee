@@ -36,10 +36,10 @@ namespace klee {
 /// References:
 /// http://lists.llvm.org/pipermail/llvm-dev/2011-March/038502.html
 /// https://groups.google.com/forum/#!topic/llvm-dev/1oNNBPMSqBg
-struct AnalysisWrapper : public llvm::ModulePass {
+struct TripCounter : public llvm::ModulePass {
   static char ID;
 
-  AnalysisWrapper() : llvm::ModulePass(ID) {}
+  TripCounter() : llvm::ModulePass(ID) {}
 
   virtual bool runOnModule(llvm::Module &m);
 
