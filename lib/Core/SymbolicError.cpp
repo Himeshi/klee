@@ -6,7 +6,9 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
+
 #include "SymbolicError.h"
+#include "klee/Internal/Module/TripCounter.h"
 
 #include "llvm/DebugInfo.h"
 #include "llvm/IR/BasicBlock.h"
@@ -15,6 +17,32 @@
 #include "llvm/IR/Metadata.h"
 
 using namespace klee;
+
+bool SymbolicError::addBasicBlock(llvm::Instruction *inst) {
+  if (llvm::BasicBlock *bb = inst->getParent()) {
+    if (lastBasicBlock == bb)
+      return false;
+
+    int64_t tripCount;
+    if (TripCounter::instance &&
+        TripCounter::instance->getTripCount(bb, tripCount)) {
+      llvm::errs() << "TRIP COUNT FOUND: " << tripCount << "\n";
+    }
+
+    lastBasicBlock = bb;
+
+    std::map<llvm::BasicBlock *, uint64_t>::iterator it = nonExited.find(bb);
+
+    bool ret = (it != nonExited.end() && it->second > 0);
+    if (ret) {
+      --(it->second);
+    } else {
+      nonExited[bb] = 1;
+    }
+    return ret;
+  }
+  return false;
+}
 
 ref<Expr> SymbolicError::getError(Executor *executor, ref<Expr> valueExpr,
                                   llvm::Value *value) {
@@ -78,7 +106,7 @@ ref<Expr> SymbolicError::getError(Executor *executor, ref<Expr> valueExpr,
   return ret;
 }
 
-SymbolicError::~SymbolicError() {}
+SymbolicError::~SymbolicError() { nonExited.clear(); }
 
 void SymbolicError::outputErrorBound(llvm::Instruction *inst, double bound) {
   ref<Expr> e =
