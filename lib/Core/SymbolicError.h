@@ -30,14 +30,12 @@ class SymbolicError {
 
   std::map<llvm::BasicBlock *, uint64_t> nonExited;
 
-  llvm::BasicBlock *lastBasicBlock;
-
 public:
-  SymbolicError() : errorState(new ErrorState()), lastBasicBlock(0) {}
+  SymbolicError() : errorState(new ErrorState()) {}
 
   SymbolicError(SymbolicError &symErr)
       : errorState(new ErrorState(*(symErr.errorState))),
-        nonExited(symErr.nonExited), lastBasicBlock(symErr.lastBasicBlock) {}
+        nonExited(symErr.nonExited) {}
 
   ~SymbolicError();
 
