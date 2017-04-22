@@ -1,4 +1,4 @@
-//===--- AnalysisWrapper.h ------------------------------------------------===//
+//===--- TripCounter.h ----------------------------------------------------===//
 //
 // The KLEE Symbolic Virtual Machine with Numerical Error Analysis Extension
 //
@@ -7,12 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef ANALYSISWRAPPER_H_
-#define ANALYSISWRAPPER_H_
+#ifndef TRIPCOUNTER_H_
+#define TRIPCOUNTER_H_
+
+#include "klee/Config/Version.h"
 
 #include "llvm/DebugInfo.h"
 #include "llvm/Pass.h"
-#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 
 #if LLVM_VERSION_CODE > LLVM_VERSION(3, 2)
 #include "llvm/IR/Constants.h"
@@ -27,7 +29,7 @@
 #endif
 #include "llvm/Support/raw_ostream.h"
 
-#include <set>
+#include <map>
 
 namespace klee {
 
@@ -39,6 +41,12 @@ namespace klee {
 struct TripCounter : public llvm::ModulePass {
   static char ID;
 
+private:
+  std::map<llvm::BasicBlock *, const llvm::SCEV *> tripCount;
+
+  void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
+
+public:
   TripCounter() : llvm::ModulePass(ID) {}
 
   virtual bool runOnModule(llvm::Module &m);
@@ -46,4 +54,4 @@ struct TripCounter : public llvm::ModulePass {
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
 };
 }
-#endif /* ANALYISWRAPPER_H_ */
+#endif /* TRIPCOUNTER_H_ */

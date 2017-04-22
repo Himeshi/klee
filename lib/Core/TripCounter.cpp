@@ -1,4 +1,4 @@
-//===------- AnalysisWrapper.cpp ------------------------------------------===//
+//===------- TripCounter.cpp ----------------------------------------------===//
 //
 // The KLEE Symbolic Virtual Machine with Numerical Error Analysis Extension
 //
@@ -9,9 +9,7 @@
 
 #include "../../include/klee/Internal/Module/TripCounter.h"
 
-#include "klee/Config/Version.h"
-
-#define DEBUG_TYPE "analysis-wrapper"
+#define DEBUG_TYPE "trip-counter"
 
 #include "llvm/DebugInfo.h"
 #include "llvm/Pass.h"
@@ -35,6 +33,17 @@
 
 using namespace klee;
 
+void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
+                                  const llvm::Loop *l) {
+  const std::vector<llvm::Loop *> &v = l->getSubLoops();
+  tripCount[l->getHeader()] = se.getBackedgeTakenCount(l);
+
+  for (std::vector<llvm::Loop *>::const_iterator it = v.begin(), ie = v.end();
+       it != ie; ++it) {
+    analyzeSubLoops(se, *it);
+  }
+}
+
 bool TripCounter::runOnModule(llvm::Module &m) {
   for (llvm::Module::iterator func = m.begin(), fe = m.end(); func != fe;
        ++func) {
@@ -45,16 +54,9 @@ bool TripCounter::runOnModule(llvm::Module &m) {
     const llvm::LoopInfo &LI = getAnalysis<llvm::LoopInfo>(*func);
     llvm::ScalarEvolution &SE = getAnalysis<llvm::ScalarEvolution>(*func);
 
-    for (llvm::Function::iterator bb = func->begin(), be = func->end();
-         bb != be; ++bb) {
-      const llvm::Loop *l = LI.getLoopFor(bb);
-      if (l) {
-        llvm::errs() << "Trip count: ";
-        SE.getBackedgeTakenCount(l)->print(llvm::errs());
-        llvm::errs() << "\n";
-        llvm::errs() << "Loop:\n";
-        l->print(llvm::errs());
-      }
+    for (llvm::LoopInfo::iterator it = LI.begin(), ie = LI.end(); it != ie;
+         ++it) {
+      analyzeSubLoops(SE, *it);
     }
   }
   return false;
