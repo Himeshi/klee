@@ -10,6 +10,8 @@
 #ifndef KLEE_SYMBOLICERROR_H_
 #define KLEE_SYMBOLICERROR_H_
 
+#include "ErrorState.h"
+
 #include "klee/Expr.h"
 #include "klee/util/ArrayCache.h"
 
@@ -24,55 +26,56 @@ class Executor;
 
 class SymbolicError {
 
-  std::map<llvm::Value *, ref<Expr> > valueErrorMap;
-
-  std::map<const Array *, const Array *> arrayErrorArrayMap;
-
-  ref<Expr> getError(Executor *executor, ref<Expr> valueExpr,
-                     llvm::Value *value = 0);
-
-  ArrayCache errorArrayCache;
-
-  std::string outputString;
-
-  std::map<uintptr_t, ref<Expr> > storedError;
+  ErrorState *errorState;
 
   std::map<llvm::BasicBlock *, uint64_t> nonExited;
 
   llvm::BasicBlock *lastBasicBlock;
 
 public:
-  SymbolicError() : lastBasicBlock(0) {}
+  SymbolicError() : errorState(new ErrorState()), lastBasicBlock(0) {}
 
   SymbolicError(SymbolicError &symErr)
-      : nonExited(symErr.nonExited), lastBasicBlock(symErr.lastBasicBlock) {
-    storedError = symErr.storedError;
-    // FIXME: Simple copy for now.
-    valueErrorMap = symErr.valueErrorMap;
-  }
+      : errorState(new ErrorState(*(symErr.errorState))),
+        nonExited(symErr.nonExited), lastBasicBlock(symErr.lastBasicBlock) {}
 
   ~SymbolicError();
 
   /// \brief Register the basic block if this basic block was a loop header
   bool addBasicBlock(llvm::Instruction *inst);
 
-  void outputErrorBound(llvm::Instruction *inst, double bound);
+  void outputErrorBound(llvm::Instruction *inst, double bound) {
+    errorState->outputErrorBound(inst, bound);
+  }
 
   ref<Expr> propagateError(Executor *executor, llvm::Instruction *instr,
                            ref<Expr> result,
-                           std::vector<ref<Expr> > &arguments);
+                           std::vector<ref<Expr> > &arguments) {
+    return errorState->propagateError(executor, instr, result, arguments);
+  }
 
-  std::string getOutputString() { return outputString; }
+  ref<Expr> retrieveError(llvm::Value *value) {
+    return errorState->retrieveError(value);
+  }
 
-  void executeStore(ref<Expr> address, ref<Expr> error);
+  std::string &getOutputString() { return errorState->getOutputString(); }
 
-  ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address);
+  void executeStore(ref<Expr> address, ref<Expr> error) {
+    return errorState->executeStore(address, error);
+  }
+
+  ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address) {
+    return errorState->executeLoad(value, address);
+  }
 
   /// print - Print the object content to stream
-  void print(llvm::raw_ostream &os) const;
+  void print(llvm::raw_ostream &os) const { errorState->print(os); }
 
   /// dump - Print the object content to stderr
-  void dump() const { print(llvm::errs()); }
+  void dump() const {
+    print(llvm::errs());
+    llvm::errs() << "\n";
+  }
 };
 }
 
