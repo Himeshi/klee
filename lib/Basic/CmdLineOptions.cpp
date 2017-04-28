@@ -92,6 +92,10 @@ llvm::cl::opt<bool> DebugPrecision(
     llvm::cl::desc("Output debugging trace for numerical precision analysis"),
     llvm::cl::init(false));
 
+llvm::cl::opt<bool>
+    UseAssignmentValidatingSolver("debug-assignment-validating-solver",
+                                  llvm::cl::init(false));
+
 #ifdef ENABLE_METASMT
 
 #ifdef METASMT_DEFAULT_BACKEND_IS_BTOR
