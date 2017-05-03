@@ -329,7 +329,10 @@ ref<Expr> SymbolicError::executeLoad(llvm::Value *value, ref<Expr> address) {
       error = it->second;
     }
   } else {
-    assert(!"non-constant address");
+    // it is possible that the address is non-constant
+    // in that case assume the error to be zero
+    // assert(!"non-constant address");
+    error = ConstantExpr::create(0, Expr::Int8);
   }
   valueErrorMap[value] = error;
   return error;
