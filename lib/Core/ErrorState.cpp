@@ -10,6 +10,7 @@
 #include "ErrorState.h"
 
 #include "klee/Config/Version.h"
+#include "klee/Internal/Module/TripCounter.h"
 
 #include "llvm/DebugInfo.h"
 
@@ -334,12 +335,25 @@ ref<Expr> ErrorState::propagateError(Executor *executor,
   return ConstantExpr::create(0, Expr::Int8);
 }
 
-void ErrorState::executeStore(ref<Expr> address, ref<Expr> error) {
+void ErrorState::executeStore(llvm::Instruction *inst, ref<Expr> address,
+                              ref<Expr> error) {
   if (error.isNull())
     return;
 
   if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
-    storedError[cp->getZExtValue()] = error;
+    uint64_t intAddress = cp->getZExtValue();
+    std::map<uint64_t, ref<Expr> >::iterator it = storedError.find(intAddress);
+    if (it != storedError.end()) {
+      long int count;
+      TripCounter::instance->getTripCount(inst, count);
+      if (count > 0) {
+        error = ExtractExpr::create(
+            MulExpr::create(ConstantExpr::create(count, Expr::Int64),
+                            ZExtExpr::create(error, Expr::Int64)),
+            0, Expr::Int8);
+      }
+    }
+    storedError[intAddress] = error;
     return;
   }
   assert(!"non-constant address");
