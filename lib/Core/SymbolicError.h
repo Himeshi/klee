@@ -72,7 +72,7 @@ public:
   }
 
   /// print - Print the object content to stream
-  void print(llvm::raw_ostream &os) const { errorStateStack.back()->print(os); }
+  void print(llvm::raw_ostream &os) const;
 
   /// dump - Print the object content to stderr
   void dump() const {

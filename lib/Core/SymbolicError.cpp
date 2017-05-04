@@ -45,3 +45,15 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst) {
 SymbolicError::~SymbolicError() {
   nonExited.clear();
 }
+
+void SymbolicError::print(llvm::raw_ostream &os) const {
+  os << "----------------------------------------------\n";
+  os << "SYMBOLIC ERROR STACK (" << errorStateStack.size() << " ELEMENT(S))";
+  for (std::vector<ref<ErrorState> >::const_reverse_iterator
+           it = errorStateStack.rbegin(),
+           is = it, ie = errorStateStack.rend();
+       it != ie; ++it) {
+    os << "\n----------------------------------------------\n";
+    (*it)->print(os);
+  }
+}

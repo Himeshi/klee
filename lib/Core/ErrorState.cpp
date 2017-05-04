@@ -393,6 +393,9 @@ void ErrorState::print(llvm::raw_ostream &os) const {
     os << "\n";
   }
 
-  os << "Output String:\n";
-  os << outputString;
+  os << "Output String: ";
+  if (outputString.empty())
+    os << "(empty)";
+  else
+    os << outputString;
 }

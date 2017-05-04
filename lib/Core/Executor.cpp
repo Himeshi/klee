@@ -3414,7 +3414,7 @@ void Executor::run(ExecutionState &initialState) {
     stepInstruction(state);
 
     if (DebugPrecision) {
-      llvm::errs() << "\n------------------------------------\n";
+      llvm::errs() << "\n----------------------------------------------\n";
       llvm::errs() << "Executing: ";
       ki->inst->dump();
     }
@@ -3426,7 +3426,6 @@ void Executor::run(ExecutionState &initialState) {
     }
 
     if (DebugPrecision) {
-      llvm::errs() << "SYMBOLIC ERROR:\n";
       state.symbolicError->dump();
     }
 
