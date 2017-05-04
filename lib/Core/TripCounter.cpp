@@ -42,7 +42,8 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
   const llvm::SCEV *scev = se.getBackedgeTakenCount(l);
   if (const llvm::SCEVConstant *scevConstant =
           llvm::dyn_cast<llvm::SCEVConstant>(scev)) {
-    tripCount[l->getHeader()] = scevConstant->getValue()->getSExtValue();
+    tripCount[l->getHeader()->getFirstNonPHIOrDbgOrLifetime()] =
+        scevConstant->getValue()->getSExtValue();
   }
 
   for (std::vector<llvm::Loop *>::const_iterator it = v.begin(), ie = v.end();
@@ -51,8 +52,9 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
   }
 }
 
-bool TripCounter::getTripCount(llvm::BasicBlock *bb, int64_t &count) const {
-  std::map<llvm::BasicBlock *, int64_t>::const_iterator it = tripCount.find(bb);
+bool TripCounter::getTripCount(llvm::Instruction *inst, int64_t &count) const {
+  std::map<llvm::Instruction *, int64_t>::const_iterator it =
+      tripCount.find(inst);
   if (it != tripCount.end()) {
     count = it->second;
     return true;

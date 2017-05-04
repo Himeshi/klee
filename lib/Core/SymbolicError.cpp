@@ -23,20 +23,18 @@
 using namespace klee;
 
 bool SymbolicError::addBasicBlock(llvm::Instruction *inst) {
-  if (llvm::BasicBlock *bb = inst->getParent()) {
-    int64_t tripCount;
-    if (TripCounter::instance &&
-        TripCounter::instance->getTripCount(bb, tripCount)) {
-      std::map<llvm::BasicBlock *, uint64_t>::iterator it = nonExited.find(bb);
+  int64_t tripCount;
+  if (TripCounter::instance &&
+      TripCounter::instance->getTripCount(inst, tripCount)) {
+    std::map<llvm::Instruction *, uint64_t>::iterator it = nonExited.find(inst);
 
-      bool ret = (it != nonExited.end() && it->second > 0);
-      if (ret) {
-        --(it->second);
-      } else {
-        nonExited[bb] = 1;
-      }
-      return ret;
+    bool ret = (it != nonExited.end() && it->second > 0);
+    if (ret) {
+      --(it->second);
+    } else {
+      nonExited[inst] = 1;
     }
+    return ret;
   }
   return false;
 }

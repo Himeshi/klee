@@ -28,7 +28,7 @@ class SymbolicError {
 
   ErrorState *errorState;
 
-  std::map<llvm::BasicBlock *, uint64_t> nonExited;
+  std::map<llvm::Instruction *, uint64_t> nonExited;
 
 public:
   SymbolicError() : errorState(new ErrorState()) {}
