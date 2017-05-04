@@ -18,11 +18,13 @@
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 
 #if LLVM_VERSION_CODE > LLVM_VERSION(3, 2)
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/GlobalVariable.h"
 #else
+#include "llvm/BasicBlock.h"
 #include "llvm/Constants.h"
 #include "llvm/Function.h"
 #include "llvm/Module.h"
@@ -59,6 +61,24 @@ bool TripCounter::getTripCount(llvm::Instruction *inst, int64_t &count) const {
     count = it->second;
     return true;
   }
+
+  count = -1;
+  if (llvm::BasicBlock *bb = inst->getParent()) {
+    if (llvm::Function *f = bb->getParent()) {
+      std::map<llvm::Function *, const llvm::LoopInfo &>::const_iterator li =
+          loopInfoAnalyses.find(f);
+      if (li != loopInfoAnalyses.end()) {
+        if (llvm::Loop *l = li->second.getLoopFor(inst->getParent())) {
+          llvm::Instruction *headerFirstInst =
+              l->getHeader()->getFirstNonPHIOrDbgOrLifetime();
+          it = tripCount.find(headerFirstInst);
+          if (it != tripCount.end()) {
+            count = it->second;
+          }
+        }
+      }
+    }
+  }
   return false;
 }
 
@@ -70,6 +90,10 @@ bool TripCounter::runOnModule(llvm::Module &m) {
       continue;
 
     const llvm::LoopInfo &LI = getAnalysis<llvm::LoopInfo>(*func);
+
+    loopInfoAnalyses.insert(
+        std::pair<llvm::Function *, const llvm::LoopInfo &>(func, LI));
+
     llvm::ScalarEvolution &SE = getAnalysis<llvm::ScalarEvolution>(*func);
 
     for (llvm::LoopInfo::iterator it = LI.begin(), ie = LI.end(); it != ie;

@@ -46,11 +46,21 @@ struct TripCounter : public llvm::ModulePass {
 private:
   std::map<llvm::Instruction *, int64_t> tripCount;
 
+  std::map<llvm::Function *, const llvm::LoopInfo &> loopInfoAnalyses;
+
   void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
 
 public:
   TripCounter() : llvm::ModulePass(ID) {}
 
+  /// \brief Retrieve the trip count of the loop this instruction is in.
+  ///
+  /// \param inst the instruction for which its enclosing loop trip count is to
+  /// be retrieved.
+  /// \param count the loop trip count, a negative value if the instruction is
+  /// not enclosed in a loop.
+  ///
+  /// \return true if inst was the first instruction of the loop header block
   bool getTripCount(llvm::Instruction *inst, int64_t &count) const;
 
   virtual bool runOnModule(llvm::Module &m);
