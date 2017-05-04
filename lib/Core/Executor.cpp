@@ -3420,7 +3420,7 @@ void Executor::run(ExecutionState &initialState) {
     }
 
     if (state.symbolicError->addBasicBlock(ki->inst)) {
-      terminateStateEarly(state, "Cycle detected");
+      terminateStateEarly(state, "prematurely terminating loop");
     } else {
       executeInstruction(state, ki);
     }
