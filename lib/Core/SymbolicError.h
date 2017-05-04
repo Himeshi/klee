@@ -26,16 +26,18 @@ class Executor;
 
 class SymbolicError {
 
-  ref<ErrorState> errorState;
+  std::vector<ref<ErrorState> > errorStateStack;
 
   std::map<llvm::Instruction *, uint64_t> nonExited;
 
 public:
-  SymbolicError() : errorState(new ErrorState()) {}
+  SymbolicError() {
+    ref<ErrorState> ret(new ErrorState());
+    errorStateStack.push_back(ret);
+  }
 
   SymbolicError(SymbolicError &symErr)
-      : errorState(new ErrorState(*(symErr.errorState))),
-        nonExited(symErr.nonExited) {}
+      : errorStateStack(symErr.errorStateStack), nonExited(symErr.nonExited) {}
 
   ~SymbolicError();
 
@@ -43,31 +45,34 @@ public:
   bool addBasicBlock(llvm::Instruction *inst);
 
   void outputErrorBound(llvm::Instruction *inst, double bound) {
-    errorState->outputErrorBound(inst, bound);
+    errorStateStack.back()->outputErrorBound(inst, bound);
   }
 
   ref<Expr> propagateError(Executor *executor, llvm::Instruction *instr,
                            ref<Expr> result,
                            std::vector<ref<Expr> > &arguments) {
-    return errorState->propagateError(executor, instr, result, arguments);
+    return errorStateStack.back()->propagateError(executor, instr, result,
+                                                  arguments);
   }
 
   ref<Expr> retrieveError(llvm::Value *value) {
-    return errorState->retrieveError(value);
+    return errorStateStack.back()->retrieveError(value);
   }
 
-  std::string &getOutputString() { return errorState->getOutputString(); }
+  std::string &getOutputString() {
+    return errorStateStack.back()->getOutputString();
+  }
 
   void executeStore(ref<Expr> address, ref<Expr> error) {
-    return errorState->executeStore(address, error);
+    return errorStateStack.back()->executeStore(address, error);
   }
 
   ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address) {
-    return errorState->executeLoad(value, address);
+    return errorStateStack.back()->executeLoad(value, address);
   }
 
   /// print - Print the object content to stream
-  void print(llvm::raw_ostream &os) const { errorState->print(os); }
+  void print(llvm::raw_ostream &os) const { errorStateStack.back()->print(os); }
 
   /// dump - Print the object content to stderr
   void dump() const {
