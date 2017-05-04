@@ -40,6 +40,5 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst) {
 }
 
 SymbolicError::~SymbolicError() {
-  delete errorState;
   nonExited.clear();
 }

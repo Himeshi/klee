@@ -23,7 +23,10 @@ namespace klee {
 class Executor;
 
 class ErrorState {
+public:
+  unsigned refCount;
 
+private:
   std::map<llvm::Value *, ref<Expr> > valueErrorMap;
 
   std::map<const Array *, const Array *> arrayErrorArrayMap;
@@ -38,9 +41,9 @@ class ErrorState {
   std::map<uintptr_t, ref<Expr> > storedError;
 
 public:
-  ErrorState() {}
+  ErrorState() : refCount(0) {}
 
-  ErrorState(ErrorState &symErr) {
+  ErrorState(ErrorState &symErr) : refCount(0) {
     storedError = symErr.storedError;
     // FIXME: Simple copy for now.
     valueErrorMap = symErr.valueErrorMap;

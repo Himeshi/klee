@@ -26,7 +26,7 @@ class Executor;
 
 class SymbolicError {
 
-  ErrorState *errorState;
+  ref<ErrorState> errorState;
 
   std::map<llvm::Instruction *, uint64_t> nonExited;
 
