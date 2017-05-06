@@ -9,6 +9,7 @@
 
 #include "ErrorState.h"
 
+#include "klee/CommandLine.h"
 #include "klee/Config/Version.h"
 #include "klee/Internal/Module/TripCounter.h"
 
@@ -344,15 +345,18 @@ void ErrorState::executeStore(llvm::Instruction *inst, ref<Expr> address,
   // with the loop trip count.
   if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
     uint64_t intAddress = cp->getZExtValue();
-    std::map<uint64_t, ref<Expr> >::iterator it = storedError.find(intAddress);
-    if (it != storedError.end()) {
-      long int count;
-      TripCounter::instance->getTripCount(inst, count);
-      if (count > 0) {
-        error = ExtractExpr::create(
-            MulExpr::create(ConstantExpr::create(count, Expr::Int64),
-                            ZExtExpr::create(error, Expr::Int64)),
-            0, Expr::Int8);
+    if (LoopBreaking) {
+      std::map<uint64_t, ref<Expr> >::iterator it =
+          storedError.find(intAddress);
+      if (it != storedError.end()) {
+        long int count;
+        TripCounter::instance->getTripCount(inst, count);
+        if (count > 0) {
+          error = ExtractExpr::create(
+              MulExpr::create(ConstantExpr::create(count, Expr::Int64),
+                              ZExtExpr::create(error, Expr::Int64)),
+              0, Expr::Int8);
+        }
       }
     }
     storedError[intAddress] = error;

@@ -92,6 +92,12 @@ llvm::cl::opt<bool> DebugPrecision(
     llvm::cl::desc("Output debugging trace for numerical precision analysis"),
     llvm::cl::init(false));
 
+llvm::cl::opt<bool> LoopBreaking(
+    "loop-breaking",
+    llvm::cl::desc(
+        "Enable loop breaking: effective only when -precision is specified"),
+    llvm::cl::init(false));
+
 llvm::cl::opt<bool>
     UseAssignmentValidatingSolver("debug-assignment-validating-solver",
                                   llvm::cl::init(false));

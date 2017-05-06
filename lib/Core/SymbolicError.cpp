@@ -9,6 +9,7 @@
 
 #include "SymbolicError.h"
 
+#include "klee/CommandLine.h"
 #include "klee/Config/Version.h"
 #include "klee/Internal/Module/TripCounter.h"
 
@@ -23,6 +24,9 @@
 using namespace klee;
 
 bool SymbolicError::addBasicBlock(llvm::Instruction *inst) {
+  if (!LoopBreaking)
+    return false;
+
   int64_t tripCount;
   if (TripCounter::instance &&
       TripCounter::instance->getTripCount(inst, tripCount)) {
