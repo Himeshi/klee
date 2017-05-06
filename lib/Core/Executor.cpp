@@ -3419,7 +3419,8 @@ void Executor::run(ExecutionState &initialState) {
       ki->inst->dump();
     }
 
-    if (state.symbolicError->addBasicBlock(ki->inst)) {
+    llvm::BasicBlock *exitBlock;
+    if (state.symbolicError->addBasicBlock(ki->inst, exitBlock)) {
       terminateStateEarly(state, "prematurely terminating loop");
     } else {
       executeInstruction(state, ki);

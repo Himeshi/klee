@@ -47,6 +47,7 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
     llvm::Instruction *headerFirstInst =
         l->getHeader()->getFirstNonPHIOrDbgOrLifetime();
     tripCount[headerFirstInst] = scevConstant->getValue()->getSExtValue();
+    exitBlock[headerFirstInst] = l->getExitBlock();
     for (llvm::Loop::block_iterator it = l->block_begin(), ie = l->block_end();
          it != ie; ++it) {
       blockToFirstInstruction[*it] = headerFirstInst;
@@ -59,11 +60,18 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
   }
 }
 
-bool TripCounter::getTripCount(llvm::Instruction *inst, int64_t &count) const {
+bool TripCounter::getTripCount(llvm::Instruction *inst, int64_t &count,
+                               llvm::BasicBlock *&exit) const {
   std::map<llvm::Instruction *, int64_t>::const_iterator it =
       tripCount.find(inst);
+  exit = 0;
   if (it != tripCount.end()) {
     count = it->second;
+    std::map<llvm::Instruction *, llvm::BasicBlock *>::const_iterator it1 =
+        exitBlock.find(inst);
+    if (it1 != exitBlock.end()) {
+      exit = it1->second;
+    }
     return true;
   }
 
@@ -76,6 +84,11 @@ bool TripCounter::getTripCount(llvm::Instruction *inst, int64_t &count) const {
           tripCount.find(it->second);
       if (it1 != tripCount.end()) {
         count = it1->second;
+        std::map<llvm::Instruction *, llvm::BasicBlock *>::const_iterator it2 =
+            exitBlock.find(inst);
+        if (it2 != exitBlock.end()) {
+          exit = it2->second;
+        }
       }
     }
   }

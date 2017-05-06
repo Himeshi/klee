@@ -28,10 +28,10 @@ class SymbolicError {
 
   std::vector<ref<ErrorState> > errorStateStack;
 
+  std::map<llvm::Instruction *, uint64_t> nonExited;
+
   /// \brief This holds the error state results of a loop
   ref<ErrorState> loopResultErrorState;
-
-  std::map<llvm::Instruction *, uint64_t> nonExited;
 
 public:
   SymbolicError() {
@@ -47,7 +47,7 @@ public:
   ~SymbolicError();
 
   /// \brief Register the basic block if this basic block was a loop header
-  bool addBasicBlock(llvm::Instruction *inst);
+  bool addBasicBlock(llvm::Instruction *inst, llvm::BasicBlock *&exit);
 
   void outputErrorBound(llvm::Instruction *inst, double bound) {
     errorStateStack.back()->outputErrorBound(inst, bound);

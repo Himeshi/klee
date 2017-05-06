@@ -48,6 +48,8 @@ private:
 
   std::map<llvm::BasicBlock *, llvm::Instruction *> blockToFirstInstruction;
 
+  std::map<llvm::Instruction *, llvm::BasicBlock *> exitBlock;
+
   void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
 
 public:
@@ -59,9 +61,11 @@ public:
   /// be retrieved.
   /// \param count the loop trip count, a negative value if the instruction is
   /// not enclosed in a loop.
+  /// \param exit the exit block
   ///
   /// \return true if inst was the first instruction of the loop header block
-  bool getTripCount(llvm::Instruction *inst, int64_t &count) const;
+  bool getTripCount(llvm::Instruction *inst, int64_t &count,
+                    llvm::BasicBlock *&exit) const;
 
   virtual bool runOnModule(llvm::Module &m);
 

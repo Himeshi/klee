@@ -23,13 +23,14 @@
 
 using namespace klee;
 
-bool SymbolicError::addBasicBlock(llvm::Instruction *inst) {
+bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
+                                  llvm::BasicBlock *&exit) {
   if (!LoopBreaking)
     return false;
 
   int64_t tripCount;
   if (TripCounter::instance &&
-      TripCounter::instance->getTripCount(inst, tripCount)) {
+      TripCounter::instance->getTripCount(inst, tripCount, exit)) {
     std::map<llvm::Instruction *, uint64_t>::iterator it = nonExited.find(inst);
 
     bool ret = (it != nonExited.end() && it->second > 0);

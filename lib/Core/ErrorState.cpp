@@ -350,7 +350,8 @@ void ErrorState::executeStore(llvm::Instruction *inst, ref<Expr> address,
           storedError.find(intAddress);
       if (it != storedError.end()) {
         long int count;
-        TripCounter::instance->getTripCount(inst, count);
+        llvm::BasicBlock *dummyBb;
+        TripCounter::instance->getTripCount(inst, count, dummyBb);
         if (count > 0) {
           error = ExtractExpr::create(
               MulExpr::create(ConstantExpr::create(count, Expr::Int64),
