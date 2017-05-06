@@ -3423,10 +3423,10 @@ void Executor::run(ExecutionState &initialState) {
       llvm::BasicBlock *exitBlock;
       if (LoopBreaking &&
           state.symbolicError->addBasicBlock(ki->inst, exitBlock)) {
-        terminateStateEarly(state, "prematurely terminating loop");
-      } else {
-        executeInstruction(state, ki);
+        transferToBasicBlock(exitBlock, ki->inst->getParent(), state);
+        ki = state.pc;
       }
+      executeInstruction(state, ki);
 
       if (DebugPrecision) {
         state.symbolicError->dump();
