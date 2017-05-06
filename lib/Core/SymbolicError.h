@@ -65,7 +65,7 @@ public:
 
   void executeStore(llvm::Instruction *inst, ref<Expr> address,
                     ref<Expr> error) {
-    return errorStateStack.back()->executeStore(inst, address, error);
+    errorStateStack.back()->executeStore(inst, address, error);
   }
 
   ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address) {
