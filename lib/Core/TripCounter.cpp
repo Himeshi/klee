@@ -44,8 +44,13 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
   const llvm::SCEV *scev = se.getBackedgeTakenCount(l);
   if (const llvm::SCEVConstant *scevConstant =
           llvm::dyn_cast<llvm::SCEVConstant>(scev)) {
-    tripCount[l->getHeader()->getFirstNonPHIOrDbgOrLifetime()] =
-        scevConstant->getValue()->getSExtValue();
+    llvm::Instruction *headerFirstInst =
+        l->getHeader()->getFirstNonPHIOrDbgOrLifetime();
+    tripCount[headerFirstInst] = scevConstant->getValue()->getSExtValue();
+    for (llvm::Loop::block_iterator it = l->block_begin(), ie = l->block_end();
+         it != ie; ++it) {
+      blockToFirstInstruction[*it] = headerFirstInst;
+    }
   }
 
   for (std::vector<llvm::Loop *>::const_iterator it = v.begin(), ie = v.end();
@@ -64,18 +69,13 @@ bool TripCounter::getTripCount(llvm::Instruction *inst, int64_t &count) const {
 
   count = -1;
   if (llvm::BasicBlock *bb = inst->getParent()) {
-    if (llvm::Function *f = bb->getParent()) {
-      std::map<llvm::Function *, const llvm::LoopInfo &>::const_iterator li =
-          loopInfoAnalyses.find(f);
-      if (li != loopInfoAnalyses.end()) {
-        if (llvm::Loop *l = li->second.getLoopFor(inst->getParent())) {
-          llvm::Instruction *headerFirstInst =
-              l->getHeader()->getFirstNonPHIOrDbgOrLifetime();
-          it = tripCount.find(headerFirstInst);
-          if (it != tripCount.end()) {
-            count = it->second;
-          }
-        }
+    std::map<llvm::BasicBlock *, llvm::Instruction *>::const_iterator it =
+        blockToFirstInstruction.find(bb);
+    if (it != blockToFirstInstruction.end()) {
+      std::map<llvm::Instruction *, int64_t>::const_iterator it1 =
+          tripCount.find(it->second);
+      if (it1 != tripCount.end()) {
+        count = it1->second;
       }
     }
   }
@@ -90,9 +90,6 @@ bool TripCounter::runOnModule(llvm::Module &m) {
       continue;
 
     const llvm::LoopInfo &LI = getAnalysis<llvm::LoopInfo>(*func);
-
-    loopInfoAnalyses.insert(
-        std::pair<llvm::Function *, const llvm::LoopInfo &>(func, LI));
 
     llvm::ScalarEvolution &SE = getAnalysis<llvm::ScalarEvolution>(*func);
 

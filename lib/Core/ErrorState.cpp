@@ -340,6 +340,8 @@ void ErrorState::executeStore(llvm::Instruction *inst, ref<Expr> address,
   if (error.isNull())
     return;
 
+  // At store instruction, we store new error by a multiply of the stored error
+  // with the loop trip count.
   if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
     uint64_t intAddress = cp->getZExtValue();
     std::map<uint64_t, ref<Expr> >::iterator it = storedError.find(intAddress);

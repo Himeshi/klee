@@ -46,7 +46,7 @@ struct TripCounter : public llvm::ModulePass {
 private:
   std::map<llvm::Instruction *, int64_t> tripCount;
 
-  std::map<llvm::Function *, const llvm::LoopInfo &> loopInfoAnalyses;
+  std::map<llvm::BasicBlock *, llvm::Instruction *> blockToFirstInstruction;
 
   void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
 
