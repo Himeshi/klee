@@ -3413,21 +3413,26 @@ void Executor::run(ExecutionState &initialState) {
     KInstruction *ki = state.pc;
     stepInstruction(state);
 
-    if (DebugPrecision) {
-      llvm::errs() << "\n----------------------------------------------\n";
-      llvm::errs() << "Executing: ";
-      ki->inst->dump();
-    }
+    if (PrecisionError) {
+      if (DebugPrecision) {
+        llvm::errs() << "\n----------------------------------------------\n";
+        llvm::errs() << "Executing: ";
+        ki->inst->dump();
+      }
 
-    llvm::BasicBlock *exitBlock;
-    if (state.symbolicError->addBasicBlock(ki->inst, exitBlock)) {
-      terminateStateEarly(state, "prematurely terminating loop");
+      llvm::BasicBlock *exitBlock;
+      if (LoopBreaking &&
+          state.symbolicError->addBasicBlock(ki->inst, exitBlock)) {
+        terminateStateEarly(state, "prematurely terminating loop");
+      } else {
+        executeInstruction(state, ki);
+      }
+
+      if (DebugPrecision) {
+        state.symbolicError->dump();
+      }
     } else {
       executeInstruction(state, ki);
-    }
-
-    if (DebugPrecision) {
-      state.symbolicError->dump();
     }
 
     processTimers(&state, MaxInstructionTime);
