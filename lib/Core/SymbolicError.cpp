@@ -35,14 +35,15 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst) {
     bool ret = (it != nonExited.end() && it->second > 0);
     if (ret) {
       --(it->second);
-      if ((it->second) == 0) {
+      if ((it->second) % 2 == 0) {
+        loopResultErrorState->overwriteWith(errorStateStack.back());
         errorStateStack.pop_back();
         return true;
       }
     } else {
       ref<ErrorState> newErrorState(new ErrorState());
       errorStateStack.push_back(newErrorState);
-      nonExited[inst] = 2;
+      nonExited[inst] += 2;
     }
   }
   return false;

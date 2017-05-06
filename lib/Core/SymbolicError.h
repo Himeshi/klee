@@ -28,16 +28,21 @@ class SymbolicError {
 
   std::vector<ref<ErrorState> > errorStateStack;
 
+  /// \brief This holds the error state results of a loop
+  ref<ErrorState> loopResultErrorState;
+
   std::map<llvm::Instruction *, uint64_t> nonExited;
 
 public:
   SymbolicError() {
     ref<ErrorState> ret(new ErrorState());
     errorStateStack.push_back(ret);
+    loopResultErrorState = ref<ErrorState>(new ErrorState());
   }
 
   SymbolicError(SymbolicError &symErr)
-      : errorStateStack(symErr.errorStateStack), nonExited(symErr.nonExited) {}
+      : errorStateStack(symErr.errorStateStack), nonExited(symErr.nonExited),
+        loopResultErrorState(symErr.loopResultErrorState) {}
 
   ~SymbolicError();
 

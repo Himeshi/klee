@@ -383,6 +383,22 @@ ref<Expr> ErrorState::executeLoad(llvm::Value *value, ref<Expr> address) {
   return error;
 }
 
+void ErrorState::overwriteWith(ref<ErrorState> overwriting) {
+  for (std::map<uintptr_t, ref<Expr> >::iterator
+           it = overwriting->storedError.begin(),
+           ie = overwriting->storedError.end();
+       it != ie; ++it) {
+    storedError[it->first] = it->second;
+  }
+
+  for (std::map<llvm::Value *, ref<Expr> >::iterator
+           it = overwriting->valueErrorMap.begin(),
+           ie = overwriting->valueErrorMap.end();
+       it != ie; ++it) {
+    valueErrorMap[it->first] = it->second;
+  }
+}
+
 void ErrorState::print(llvm::raw_ostream &os) const {
   os << "Value->Expression:\n";
   for (std::map<llvm::Value *, ref<Expr> >::const_iterator
