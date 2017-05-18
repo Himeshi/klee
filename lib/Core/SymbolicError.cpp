@@ -39,6 +39,7 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
       if ((it->second) % 2 == 0) {
         loopResultErrorState->overwriteWith(errorStateStack.back());
         errorStateStack.pop_back();
+        errorStateStack.back()->overwriteWith(loopResultErrorState);
         return true;
       }
     } else {
