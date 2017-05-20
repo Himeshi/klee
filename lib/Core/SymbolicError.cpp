@@ -43,7 +43,7 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
         return true;
       }
     } else {
-      ref<ErrorState> newErrorState(new ErrorState());
+      ref<ErrorState> newErrorState(new ErrorState(*(errorStateStack.back())));
       errorStateStack.push_back(newErrorState);
       nonExited[inst] += 2;
     }
