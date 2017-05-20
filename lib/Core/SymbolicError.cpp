@@ -37,14 +37,9 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
     if (ret) {
       --(it->second);
       if ((it->second) % 2 == 0) {
-        loopResultErrorState->overwriteWith(errorStateStack.back());
-        errorStateStack.pop_back();
-        errorStateStack.back()->overwriteWith(loopResultErrorState);
         return true;
       }
     } else {
-      ref<ErrorState> newErrorState(new ErrorState(*(errorStateStack.back())));
-      errorStateStack.push_back(newErrorState);
       nonExited[inst] += 2;
     }
   }
@@ -56,13 +51,5 @@ SymbolicError::~SymbolicError() {
 }
 
 void SymbolicError::print(llvm::raw_ostream &os) const {
-  os << "----------------------------------------------\n";
-  os << "SYMBOLIC ERROR STACK (" << errorStateStack.size() << " ELEMENT(S))";
-  for (std::vector<ref<ErrorState> >::const_reverse_iterator
-           it = errorStateStack.rbegin(),
-           is = it, ie = errorStateStack.rend();
-       it != ie; ++it) {
-    os << "\n----------------------------------------------\n";
-    (*it)->print(os);
-  }
+  errorState->print(os);
 }

@@ -26,23 +26,15 @@ class Executor;
 
 class SymbolicError {
 
-  std::vector<ref<ErrorState> > errorStateStack;
+  ref<ErrorState> errorState;
 
   std::map<llvm::Instruction *, uint64_t> nonExited;
 
-  /// \brief This holds the error state results of a loop
-  ref<ErrorState> loopResultErrorState;
-
 public:
-  SymbolicError() {
-    ref<ErrorState> ret(new ErrorState());
-    errorStateStack.push_back(ret);
-    loopResultErrorState = ref<ErrorState>(new ErrorState());
-  }
+  SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
 
   SymbolicError(SymbolicError &symErr)
-      : errorStateStack(symErr.errorStateStack), nonExited(symErr.nonExited),
-        loopResultErrorState(symErr.loopResultErrorState) {}
+      : errorState(symErr.errorState), nonExited(symErr.nonExited) {}
 
   ~SymbolicError();
 
@@ -50,31 +42,28 @@ public:
   bool addBasicBlock(llvm::Instruction *inst, llvm::BasicBlock *&exit);
 
   void outputErrorBound(llvm::Instruction *inst, double bound) {
-    errorStateStack.back()->outputErrorBound(inst, bound);
+    errorState->outputErrorBound(inst, bound);
   }
 
   ref<Expr> propagateError(Executor *executor, llvm::Instruction *instr,
                            ref<Expr> result,
                            std::vector<ref<Expr> > &arguments) {
-    return errorStateStack.back()->propagateError(executor, instr, result,
-                                                  arguments);
+    return errorState->propagateError(executor, instr, result, arguments);
   }
 
   ref<Expr> retrieveError(llvm::Value *value) {
-    return errorStateStack.back()->retrieveError(value);
+    return errorState->retrieveError(value);
   }
 
-  std::string &getOutputString() {
-    return errorStateStack.back()->getOutputString();
-  }
+  std::string &getOutputString() { return errorState->getOutputString(); }
 
   void executeStore(llvm::Instruction *inst, ref<Expr> address,
                     ref<Expr> error) {
-    errorStateStack.back()->executeStore(inst, address, error);
+    errorState->executeStore(inst, address, error);
   }
 
   ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address) {
-    return errorStateStack.back()->executeLoad(value, address);
+    return errorState->executeLoad(value, address);
   }
 
   /// print - Print the object content to stream
