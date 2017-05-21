@@ -1413,13 +1413,14 @@ int main(int argc, char **argv, char **envp) {
   }
   handler->getInfoStream() << "PID: " << getpid() << "\n";
 
+  Module *analysisModule = interpreter->setModule(mainModule, Opts);
+
   llvm::PassManager PM;
   TripCounter::instance = new TripCounter();
   PM.add(TripCounter::instance);
-  PM.run(*mainModule);
+  PM.run(*analysisModule);
 
-  const Module *finalModule =
-    interpreter->setModule(mainModule, Opts);
+  const Module *finalModule = analysisModule;
   externalsAndGlobalsCheck(finalModule);
 
   if (ReplayPathFile != "") {

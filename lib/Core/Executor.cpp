@@ -403,9 +403,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
   }
 }
 
-
-const Module *Executor::setModule(llvm::Module *module, 
-                                  const ModuleOptions &opts) {
+Module *Executor::setModule(llvm::Module *module, const ModuleOptions &opts) {
   assert(!kmodule && module && "can only register one module"); // XXX gross
   
   kmodule = new KModule(module);
@@ -2147,7 +2145,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::ICmp: {
     CmpInst *ci = cast<CmpInst>(i);
     ICmpInst *ii = cast<ICmpInst>(ci);
- 
+
     switch(ii->getPredicate()) {
     case ICmpInst::ICMP_EQ: {
       ref<Expr> left = eval(ki, 0, state).value;
