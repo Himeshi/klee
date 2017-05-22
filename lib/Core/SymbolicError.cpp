@@ -37,6 +37,8 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
     if (ret) {
       --(it->second);
       if ((it->second) % 2 == 0) {
+        // We are exiting the loop; erase it from not-yet-exited loops map
+        nonExited.erase(it);
         return true;
       }
     } else {
