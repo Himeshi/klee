@@ -54,4 +54,18 @@ SymbolicError::~SymbolicError() {
 
 void SymbolicError::print(llvm::raw_ostream &os) const {
   errorState->print(os);
+
+  os << "\nNon-Exited Loops:";
+  if (!nonExited.empty()) {
+    for (std::map<llvm::Instruction *, uint64_t>::const_iterator
+             it = nonExited.begin(),
+             ie = nonExited.end();
+         it != ie; ++it) {
+      os << "\nheader: ";
+      it->first->print(os);
+      os << ", iterations left: " << it->second;
+    }
+  } else {
+    os << " (none)";
+  }
 }
