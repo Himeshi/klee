@@ -50,6 +50,8 @@ private:
 
   std::map<llvm::Instruction *, llvm::BasicBlock *> exitBlock;
 
+  std::map<llvm::Instruction *, llvm::Instruction *> firstInstructionOfExit;
+
   void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
 
 public:
@@ -66,6 +68,19 @@ public:
   /// \return true if inst was the first instruction of the loop header block
   bool getTripCount(llvm::Instruction *inst, int64_t &count,
                     llvm::BasicBlock *&exit) const;
+
+  /// \brief Given the first instruction in the exit block, retrieve the first
+  /// instruction in the loop body. This member function is used to indicate
+  /// that the loop has been exited before the loop breaking routine is
+  /// triggered.
+  llvm::Instruction *getFirstInstructionOfExit(llvm::Instruction *inst) const {
+    std::map<llvm::Instruction *, llvm::Instruction *>::const_iterator it =
+        firstInstructionOfExit.find(inst);
+    if (it != firstInstructionOfExit.end()) {
+      return it->second;
+    }
+    return 0;
+  }
 
   virtual bool runOnModule(llvm::Module &m);
 

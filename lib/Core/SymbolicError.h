@@ -41,6 +41,10 @@ public:
   /// \brief Register the basic block if this basic block was a loop header
   bool addBasicBlock(llvm::Instruction *inst, llvm::BasicBlock *&exit);
 
+  /// \brief Deregister the loop in nonExited if it is exited due to iteration
+  /// numbers too small (< 2).
+  void deregisterLoopIfExited(llvm::Instruction *inst);
+
   void outputErrorBound(llvm::Instruction *inst, double bound) {
     errorState->outputErrorBound(inst, bound);
   }

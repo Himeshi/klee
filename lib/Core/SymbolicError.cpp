@@ -48,6 +48,16 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
   return false;
 }
 
+void SymbolicError::deregisterLoopIfExited(llvm::Instruction *inst) {
+  llvm::Instruction *firstLoopInst =
+      TripCounter::instance->getFirstInstructionOfExit(inst);
+  std::map<llvm::Instruction *, uint64_t>::iterator it =
+      nonExited.find(firstLoopInst);
+  if (it != nonExited.end()) {
+    nonExited.erase(it);
+  }
+}
+
 SymbolicError::~SymbolicError() {
   nonExited.clear();
 }

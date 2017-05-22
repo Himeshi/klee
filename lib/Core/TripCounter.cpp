@@ -46,12 +46,15 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
           llvm::dyn_cast<llvm::SCEVConstant>(scev)) {
     llvm::Instruction *headerFirstInst =
         l->getHeader()->getFirstNonPHIOrDbgOrLifetime();
+    llvm::Instruction *exitFirstInst =
+        l->getExitBlock()->getFirstNonPHIOrDbgOrLifetime();
     tripCount[headerFirstInst] = scevConstant->getValue()->getSExtValue();
     exitBlock[headerFirstInst] = l->getExitBlock();
     for (llvm::Loop::block_iterator it = l->block_begin(), ie = l->block_end();
          it != ie; ++it) {
       blockToFirstInstruction[*it] = headerFirstInst;
     }
+    firstInstructionOfExit[exitFirstInst] = headerFirstInst;
   }
 
   for (std::vector<llvm::Loop *>::const_iterator it = v.begin(), ie = v.end();

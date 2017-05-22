@@ -3419,10 +3419,13 @@ void Executor::run(ExecutionState &initialState) {
       }
 
       llvm::BasicBlock *exitBlock;
-      if (LoopBreaking &&
-          state.symbolicError->addBasicBlock(ki->inst, exitBlock)) {
-        transferToBasicBlock(exitBlock, ki->inst->getParent(), state);
-        ki = state.pc;
+      if (LoopBreaking) {
+        if (state.symbolicError->addBasicBlock(ki->inst, exitBlock)) {
+          transferToBasicBlock(exitBlock, ki->inst->getParent(), state);
+          ki = state.pc;
+        } else {
+          state.symbolicError->deregisterLoopIfExited(ki->inst);
+        }
       }
       executeInstruction(state, ki);
 
