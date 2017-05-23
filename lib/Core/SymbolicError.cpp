@@ -51,7 +51,7 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
       // Loop is entered for the first time
 
       // Add element to write record
-      writesStack.push_back(std::set<uint64_t>());
+      writesStack.push_back(std::map<ref<Expr>, ref<Expr> >());
 
       // Set the iteration reverse count.
       nonExited[inst] += 2;
@@ -83,9 +83,9 @@ SymbolicError::~SymbolicError() {
 void SymbolicError::executeStore(llvm::Instruction *inst, ref<Expr> address,
                                  ref<Expr> value, ref<Expr> error) {
   if (LoopBreaking && !writesStack.empty()) {
-    if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
-      uint64_t intAddress = cp->getZExtValue();
-      writesStack.back().insert(intAddress);
+    if (llvm::isa<ConstantExpr>(address)) {
+      std::map<ref<Expr>, ref<Expr> > &writesMap = writesStack.back();
+      writesMap[address] = value;
     } else {
       assert(!"non-constant address");
     }

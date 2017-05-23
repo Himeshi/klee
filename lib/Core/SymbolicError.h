@@ -31,7 +31,7 @@ class SymbolicError {
   std::map<llvm::Instruction *, uint64_t> nonExited;
 
   /// \brief Record addresses used for writes to memory within each loop
-  std::vector<std::set<uint64_t> > writesStack;
+  std::vector<std::map<ref<Expr>, ref<Expr> > > writesStack;
 
 public:
   SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
