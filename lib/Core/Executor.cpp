@@ -4187,6 +4187,22 @@ void Executor::executeStoreError(ExecutionState &state, const uintptr_t address,
   state.symbolicError->storeError(state.pc->inst, addressExpr, errorExpr);
 }
 
+// store the error amount of a memory object at a given address
+ref<Expr> Executor::createFreshArray(ExecutionState &state, uint64_t id,
+                                     Expr::Width width) {
+  // Find a unique name for this array.  First try the original name,
+  // or if that fails try adding a unique identifier. Shamelessly copied from
+  // executeMakeSymbolic.
+  std::string name = "_fresh_" + llvm::utostr(id);
+  std::string uniqueName = name;
+  while (!state.arrayNames.insert(uniqueName).second) {
+    uniqueName = name + "_" + llvm::utostr(++id);
+  }
+  const Array *array = arrayCache.CreateArray(uniqueName, width);
+  return ReadExpr::create(UpdateList(array, 0),
+                          ConstantExpr::create(0, array->getDomain()));
+}
+
 /***/
 
 void Executor::runFunctionAsMain(Function *f,
