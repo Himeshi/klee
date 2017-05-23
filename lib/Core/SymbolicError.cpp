@@ -109,4 +109,25 @@ void SymbolicError::print(llvm::raw_ostream &os) const {
   } else {
     os << " (none)";
   }
+
+  os << "\nWrites stack:";
+  if (!writesStack.empty()) {
+    for (std::vector<std::map<ref<Expr>, ref<Expr> > >::const_iterator
+             it = writesStack.begin(),
+             ie = writesStack.end();
+         it != ie; ++it) {
+      os << "\n-----------------------------";
+      for (std::map<ref<Expr>, ref<Expr> >::const_iterator it1 = it->begin(),
+                                                           ie1 = it->end();
+           it1 != ie1; ++it1) {
+        os << "\n[";
+        it1->first->print(os);
+        os << "] -> [";
+        it1->second->print(os);
+        os << "]";
+      }
+    }
+  } else {
+    os << " (empty)";
+  }
 }
