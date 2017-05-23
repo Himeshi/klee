@@ -31,17 +31,29 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
   int64_t tripCount;
   if (TripCounter::instance &&
       TripCounter::instance->getTripCount(inst, tripCount, exit)) {
+    // Loop is entered
     std::map<llvm::Instruction *, uint64_t>::iterator it = nonExited.find(inst);
 
     bool ret = (it != nonExited.end() && it->second > 0);
     if (ret) {
       --(it->second);
       if ((it->second) % 2 == 0) {
-        // We are exiting the loop; erase it from not-yet-exited loops map
+        // We are exiting the loop
+
+        // Pop the last memory writes record
+        writesStack.pop_back();
+
+        // Erase the loop from not-yet-exited loops map
         nonExited.erase(it);
         return true;
       }
     } else {
+      // Loop is entered for the first time
+
+      // Add element to write record
+      writesStack.push_back(std::set<uint64_t>());
+
+      // Set the iteration reverse count.
       nonExited[inst] += 2;
     }
   }
@@ -54,6 +66,12 @@ void SymbolicError::deregisterLoopIfExited(llvm::Instruction *inst) {
   std::map<llvm::Instruction *, uint64_t>::iterator it =
       nonExited.find(firstLoopInst);
   if (it != nonExited.end()) {
+    // We are exiting the loop
+
+    // Pop the last memory writes record
+    writesStack.pop_back();
+
+    // Erase the loop from not-yet-exited loops map
     nonExited.erase(it);
   }
 }
