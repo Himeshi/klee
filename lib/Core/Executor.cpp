@@ -4019,7 +4019,8 @@ void Executor::executeMemoryOperation(
         } else {
           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
           wos->write(offset, value);
-          state.symbolicError->executeStore(state.pc->inst, address, error);
+          state.symbolicError->executeStore(state.pc->inst, address, value,
+                                            error);
         }
       } else {
         ref<Expr> result = os->read(offset, type);
@@ -4065,7 +4066,8 @@ void Executor::executeMemoryOperation(
         } else {
           ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
           wos->write(mo->getOffsetExpr(address), value);
-          state.symbolicError->executeStore(state.pc->inst, address, error);
+          state.symbolicError->executeStore(state.pc->inst, address, value,
+                                            error);
         }
       } else {
         ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
@@ -4181,7 +4183,7 @@ void Executor::executeStoreError(ExecutionState &state, const uintptr_t address,
       UpdateList(array, 0), ConstantExpr::create(0, array->getDomain()));
   ref<Expr> addressExpr = Expr::createPointer(address);
 
-  state.symbolicError->executeStore(state.pc->inst, addressExpr, errorExpr);
+  state.symbolicError->storeError(state.pc->inst, addressExpr, errorExpr);
 }
 
 /***/

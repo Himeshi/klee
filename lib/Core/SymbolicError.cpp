@@ -80,6 +80,19 @@ SymbolicError::~SymbolicError() {
   nonExited.clear();
 }
 
+void SymbolicError::executeStore(llvm::Instruction *inst, ref<Expr> address,
+                                 ref<Expr> value, ref<Expr> error) {
+  if (LoopBreaking && !writesStack.empty()) {
+    if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
+      uint64_t intAddress = cp->getZExtValue();
+      writesStack.back().insert(intAddress);
+    } else {
+      assert(!"non-constant address");
+    }
+  }
+  storeError(inst, address, error);
+}
+
 void SymbolicError::print(llvm::raw_ostream &os) const {
   errorState->print(os);
 
