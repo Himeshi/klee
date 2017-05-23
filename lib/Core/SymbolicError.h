@@ -13,6 +13,7 @@
 #include "ErrorState.h"
 
 #include "klee/Expr.h"
+#include "klee/Internal/Module/Cell.h"
 #include "klee/util/ArrayCache.h"
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
@@ -23,6 +24,7 @@
 
 namespace klee {
 class Executor;
+class ExecutionState;
 
 class SymbolicError {
 
@@ -42,11 +44,13 @@ public:
   ~SymbolicError();
 
   /// \brief Register the basic block if this basic block was a loop header
-  bool addBasicBlock(llvm::Instruction *inst, llvm::BasicBlock *&exit);
+  bool addBasicBlock(Executor *executor, ExecutionState &state,
+                     llvm::Instruction *inst, llvm::BasicBlock *&exit);
 
   /// \brief Deregister the loop in nonExited if it is exited due to iteration
   /// numbers too small (< 2).
-  void deregisterLoopIfExited(llvm::Instruction *inst);
+  void deregisterLoopIfExited(Executor *executor, ExecutionState &state,
+                              llvm::Instruction *inst);
 
   void outputErrorBound(llvm::Instruction *inst, double bound) {
     errorState->outputErrorBound(inst, bound);

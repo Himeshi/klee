@@ -9,6 +9,7 @@
 
 #include "SymbolicError.h"
 
+#include "Executor.h"
 #include "klee/CommandLine.h"
 #include "klee/Config/Version.h"
 #include "klee/Internal/Module/TripCounter.h"
@@ -23,7 +24,8 @@
 
 using namespace klee;
 
-bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
+bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
+                                  llvm::Instruction *inst,
                                   llvm::BasicBlock *&exit) {
   if (!LoopBreaking)
     return false;
@@ -40,6 +42,16 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
       if ((it->second) % 2 == 0) {
         // We are exiting the loop
 
+        for (std::map<ref<Expr>, ref<Expr> >::iterator
+                 it1 = writesStack.back().begin(),
+                 ie1 = writesStack.back().end();
+             it1 != ie1; ++it1) {
+          Cell addressCell;
+          addressCell.value = it1->first;
+          ref<Expr> error = errorState->retrieveStoredError(it1->first);
+          executor->executeMemoryOperation(state, true, addressCell,
+                                           it1->second, error, 0);
+        }
         // Pop the last memory writes record
         writesStack.pop_back();
 
@@ -60,13 +72,26 @@ bool SymbolicError::addBasicBlock(llvm::Instruction *inst,
   return false;
 }
 
-void SymbolicError::deregisterLoopIfExited(llvm::Instruction *inst) {
+void SymbolicError::deregisterLoopIfExited(Executor *executor,
+                                           ExecutionState &state,
+                                           llvm::Instruction *inst) {
   llvm::Instruction *firstLoopInst =
       TripCounter::instance->getFirstInstructionOfExit(inst);
   std::map<llvm::Instruction *, uint64_t>::iterator it =
       nonExited.find(firstLoopInst);
   if (it != nonExited.end()) {
     // We are exiting the loop
+
+    for (std::map<ref<Expr>, ref<Expr> >::iterator
+             it1 = writesStack.back().begin(),
+             ie1 = writesStack.back().end();
+         it1 != ie1; ++it1) {
+      Cell addressCell;
+      addressCell.value = it1->second;
+      ref<Expr> error = errorState->retrieveStoredError(it1->first);
+      executor->executeMemoryOperation(state, true, addressCell, it1->second,
+                                       error, 0);
+    }
 
     // Pop the last memory writes record
     writesStack.pop_back();
