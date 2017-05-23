@@ -66,6 +66,14 @@ public:
 
   void executeStore(llvm::Instruction *inst, ref<Expr> address,
                     ref<Expr> error) {
+    if (LoopBreaking && !writesStack.empty()) {
+      if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
+        uint64_t intAddress = cp->getZExtValue();
+        writesStack.back().insert(intAddress);
+      } else {
+        assert(!"non-constant address");
+      }
+    }
     errorState->executeStore(inst, address, error);
   }
 
