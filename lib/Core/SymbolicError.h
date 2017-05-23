@@ -27,6 +27,7 @@ class Executor;
 class ExecutionState;
 
 class SymbolicError {
+  static uint64_t freshVariableId;
 
   ref<ErrorState> errorState;
 

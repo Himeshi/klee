@@ -24,6 +24,8 @@
 
 using namespace klee;
 
+uint64_t SymbolicError::freshVariableId = 0;
+
 bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
                                   llvm::Instruction *inst,
                                   llvm::BasicBlock *&exit) {
@@ -49,8 +51,10 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
           Cell addressCell;
           addressCell.value = it1->first;
           ref<Expr> error = errorState->retrieveStoredError(it1->first);
-          executor->executeMemoryOperation(state, true, addressCell,
-                                           it1->second, error, 0);
+          ref<Expr> freshRead = executor->createFreshArray(
+              state, SymbolicError::freshVariableId, it1->second->getWidth());
+          executor->executeMemoryOperation(state, true, addressCell, freshRead,
+                                           error, 0);
         }
         // Pop the last memory writes record
         writesStack.pop_back();
@@ -89,7 +93,9 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
       Cell addressCell;
       addressCell.value = it1->second;
       ref<Expr> error = errorState->retrieveStoredError(it1->first);
-      executor->executeMemoryOperation(state, true, addressCell, it1->second,
+      ref<Expr> freshRead = executor->createFreshArray(
+          state, SymbolicError::freshVariableId, it1->second->getWidth());
+      executor->executeMemoryOperation(state, true, addressCell, freshRead,
                                        error, 0);
     }
 

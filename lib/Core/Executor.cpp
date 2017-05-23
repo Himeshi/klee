@@ -4188,7 +4188,7 @@ void Executor::executeStoreError(ExecutionState &state, const uintptr_t address,
 }
 
 // store the error amount of a memory object at a given address
-ref<Expr> Executor::createFreshArray(ExecutionState &state, uint64_t id,
+ref<Expr> Executor::createFreshArray(ExecutionState &state, uint64_t &id,
                                      Expr::Width width) {
   // Find a unique name for this array.  First try the original name,
   // or if that fails try adding a unique identifier. Shamelessly copied from

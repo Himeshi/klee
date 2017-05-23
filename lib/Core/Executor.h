@@ -310,7 +310,7 @@ private:
                          const std::string &name);
 
   // Create a read expression from a fresh array
-  ref<Expr> createFreshArray(ExecutionState &state, uint64_t id,
+  ref<Expr> createFreshArray(ExecutionState &state, uint64_t &id,
                              Expr::Width width);
 
   /// Create a new state where each input condition has been added as
