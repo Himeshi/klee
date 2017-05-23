@@ -64,6 +64,8 @@ public:
   void executeStore(llvm::Instruction *inst, ref<Expr> address,
                     ref<Expr> error);
 
+  ref<Expr> retrieveStoredError(ref<Expr> address) const;
+
   ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address);
 
   /// \brief Overwrite the contents of the current error state with another

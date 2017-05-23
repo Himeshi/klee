@@ -366,10 +366,10 @@ void ErrorState::executeStore(llvm::Instruction *inst, ref<Expr> address,
   assert(!"non-constant address");
 }
 
-ref<Expr> ErrorState::executeLoad(llvm::Value *value, ref<Expr> address) {
+ref<Expr> ErrorState::retrieveStoredError(ref<Expr> address) const {
   ref<Expr> error = ConstantExpr::create(0, Expr::Int8);
   if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
-    std::map<uintptr_t, ref<Expr> >::iterator it =
+    std::map<uintptr_t, ref<Expr> >::const_iterator it =
         storedError.find(cp->getZExtValue());
     if (it != storedError.end()) {
       error = it->second;
@@ -380,6 +380,11 @@ ref<Expr> ErrorState::executeLoad(llvm::Value *value, ref<Expr> address) {
     // assert(!"non-constant address");
     error = ConstantExpr::create(0, Expr::Int8);
   }
+  return error;
+}
+
+ref<Expr> ErrorState::executeLoad(llvm::Value *value, ref<Expr> address) {
+  ref<Expr> error = retrieveStoredError(address);
   valueErrorMap[value] = error;
   return error;
 }
