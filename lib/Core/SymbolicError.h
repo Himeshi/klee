@@ -44,7 +44,9 @@ public:
   SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
 
   SymbolicError(SymbolicError &symErr)
-      : errorState(symErr.errorState), nonExited(symErr.nonExited) {}
+      : errorState(symErr.errorState), nonExited(symErr.nonExited),
+        writesStack(symErr.writesStack),
+        phiResultsStack(symErr.phiResultsStack) {}
 
   ~SymbolicError();
 
