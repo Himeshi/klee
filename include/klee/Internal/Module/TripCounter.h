@@ -55,6 +55,8 @@ private:
 
   std::set<llvm::BasicBlock *> headerBlocks;
 
+  std::set<llvm::Instruction *> realFirstInstruction;
+
   void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
 
 public:
@@ -91,6 +93,10 @@ public:
       return headerBlocks.find(b) != headerBlocks.end();
     }
     return false;
+  }
+
+  bool isRealFirstInstruction(llvm::Instruction *instr) const {
+    return realFirstInstruction.find(instr) != realFirstInstruction.end();
   }
 
   virtual bool runOnModule(llvm::Module &m);

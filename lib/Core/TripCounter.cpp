@@ -46,6 +46,8 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
 
   headerBlocks.insert(header);
 
+  realFirstInstruction.insert(header->begin());
+
   if (const llvm::SCEVConstant *scevConstant =
           llvm::dyn_cast<llvm::SCEVConstant>(scev)) {
     llvm::Instruction *headerFirstInst =
