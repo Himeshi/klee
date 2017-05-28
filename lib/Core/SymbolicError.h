@@ -36,23 +36,16 @@ class SymbolicError {
   /// \brief Record addresses used for writes to memory within each loop
   std::vector<std::map<ref<Expr>, ref<Expr> > > writesStack;
 
-  /// \brief This data structure records the results of phi instructions at the
-  /// header block of a loop
-  std::vector<std::map<llvm::Instruction *, ref<Expr> > > phiResultsStack;
-
-  /// \brief This is to flag that the PHI results stack element has been created
-  bool phiResultsStackElementCreated;
+  /// \brief This data structure records the width of the results of phi
+  /// instructions at the header block of a loop
+  std::map<llvm::Instruction *, unsigned int> phiResultWidthList;
 
 public:
-  SymbolicError() : phiResultsStackElementCreated(false) {
-    errorState = ref<ErrorState>(new ErrorState());
-  }
+  SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
 
   SymbolicError(SymbolicError &symErr)
       : errorState(symErr.errorState), nonExited(symErr.nonExited),
-        writesStack(symErr.writesStack),
-        phiResultsStack(symErr.phiResultsStack),
-        phiResultsStackElementCreated(false) {}
+        writesStack(symErr.writesStack) {}
 
   ~SymbolicError();
 
