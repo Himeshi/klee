@@ -40,13 +40,19 @@ class SymbolicError {
   /// header block of a loop
   std::vector<std::map<llvm::Instruction *, ref<Expr> > > phiResultsStack;
 
+  /// \brief This is to flag that the PHI results stack element has been created
+  bool phiResultsStackElementCreated;
+
 public:
-  SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
+  SymbolicError() : phiResultsStackElementCreated(false) {
+    errorState = ref<ErrorState>(new ErrorState());
+  }
 
   SymbolicError(SymbolicError &symErr)
       : errorState(symErr.errorState), nonExited(symErr.nonExited),
         writesStack(symErr.writesStack),
-        phiResultsStack(symErr.phiResultsStack) {}
+        phiResultsStack(symErr.phiResultsStack),
+        phiResultsStackElementCreated(false) {}
 
   ~SymbolicError();
 
