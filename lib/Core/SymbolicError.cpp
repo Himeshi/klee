@@ -57,6 +57,24 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
           executor->executeMemoryOperation(state, true, addressCell, freshRead,
                                            error, 0);
         }
+
+        for (std::map<llvm::Instruction *, unsigned int>::iterator
+                 it1 = phiResultWidthList.begin(),
+                 ie1 = phiResultWidthList.end();
+             it1 != ie1; ++it1) {
+          ref<Expr> error = errorState->retrieveError(it1->first);
+          if (!error.isNull()) {
+            error = ExtractExpr::create(
+                MulExpr::create(ConstantExpr::create(tripCount, Expr::Int64),
+                                ZExtExpr::create(error, Expr::Int64)),
+                0, Expr::Int8);
+          } else {
+            error = ConstantExpr::create(0, Expr::Int8);
+          }
+          executor->bindLocal(
+              ki, state, createFreshRead(executor, state, it1->second), error);
+        }
+
         // Pop the last memory writes record
         writesStack.pop_back();
 
