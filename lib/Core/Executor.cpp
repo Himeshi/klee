@@ -1933,8 +1933,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     // We use the arguments list as a carrier for the error amount
     std::vector<ref<Expr> > errors;
     errors.push_back(error);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, errors));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, errors));
     break;
   }
 
@@ -1967,8 +1967,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(left);
     arguments.push_back(right);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
 
     break;
   }
@@ -1982,8 +1982,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
  
@@ -1996,8 +1996,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2010,8 +2010,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2024,8 +2024,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2038,8 +2038,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
  
@@ -2052,8 +2052,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2066,8 +2066,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2080,8 +2080,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2094,8 +2094,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2108,8 +2108,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2121,8 +2121,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(left);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2135,8 +2135,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2157,7 +2157,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2171,7 +2171,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2185,7 +2185,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2199,7 +2199,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2213,7 +2213,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2227,7 +2227,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2241,7 +2241,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2255,7 +2255,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2269,7 +2269,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2283,7 +2283,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     }
 
@@ -2344,8 +2344,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(oldBase);
 
-    bindLocal(ki, state, base,
-              state.symbolicError->propagateError(this, i, base, arguments));
+    bindLocal(ki, state, base, state.symbolicError->propagateError(
+                                   this, state, i, base, arguments));
     break;
   }
 
@@ -2357,8 +2357,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         ExtractExpr::create(c.value, 0, getWidthForLLVMType(ci->getType()));
     std::vector<ref<Expr> > arguments;
     arguments.push_back(c.value);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
   case Instruction::ZExt: {
@@ -2368,8 +2368,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         ZExtExpr::create(c.value, getWidthForLLVMType(ci->getType()));
     std::vector<ref<Expr> > arguments;
     arguments.push_back(c.value);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
   case Instruction::SExt: {
@@ -2379,8 +2379,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         SExtExpr::create(c.value, getWidthForLLVMType(ci->getType()));
     std::vector<ref<Expr> > arguments;
     arguments.push_back(c.value);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2392,8 +2392,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> result = ZExtExpr::create(arg, pType);
     std::vector<ref<Expr> > arguments;
     arguments.push_back(arg);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   } 
   case Instruction::PtrToInt: {
@@ -2403,8 +2403,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> result = ZExtExpr::create(arg, iType);
     std::vector<ref<Expr> > arguments;
     arguments.push_back(arg);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2413,8 +2413,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> result = c.value;
     std::vector<ref<Expr> > arguments;
     arguments.push_back(result);
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 
@@ -2430,7 +2430,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(left);
       arguments.push_back(right);
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       ref<ConstantExpr> left =
           toConstant(state, eval(ki, 0, state).value, "floating point");
@@ -2458,7 +2458,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2474,7 +2474,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       ref<ConstantExpr> left =
           toConstant(state, eval(ki, 0, state).value, "floating point");
@@ -2500,7 +2500,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2522,7 +2522,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
     ref<ConstantExpr> left = toConstant(state, eval(ki, 0, state).value,
                                         "floating point");
@@ -2545,8 +2545,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(left);
     arguments.push_back(right);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     }
     break;
   }
@@ -2568,7 +2568,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
       break;
     } else {
       ref<ConstantExpr> left =
@@ -2596,7 +2596,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2612,7 +2612,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       ref<ConstantExpr> left =
           toConstant(state, eval(ki, 0, state).value, "floating point");
@@ -2638,7 +2638,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2652,7 +2652,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       std::vector<ref<Expr> > arguments;
       arguments.push_back(c.value);
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       FPTruncInst *fi = cast<FPTruncInst>(i);
       Expr::Width resultType = getWidthForLLVMType(fi->getType());
@@ -2677,7 +2677,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(arg);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2691,7 +2691,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       std::vector<ref<Expr> > arguments;
       arguments.push_back(c.value);
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       FPExtInst *fi = cast<FPExtInst>(i);
       Expr::Width resultType = getWidthForLLVMType(fi->getType());
@@ -2714,7 +2714,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(arg);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2726,7 +2726,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       std::vector<ref<Expr> > arguments;
       arguments.push_back(result);
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       FPToUIInst *fi = cast<FPToUIInst>(i);
       Expr::Width resultType = getWidthForLLVMType(fi->getType());
@@ -2751,7 +2751,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(arg);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2763,7 +2763,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       std::vector<ref<Expr> > arguments;
       arguments.push_back(result);
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       FPToSIInst *fi = cast<FPToSIInst>(i);
       Expr::Width resultType = getWidthForLLVMType(fi->getType());
@@ -2788,7 +2788,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(arg);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2800,7 +2800,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       std::vector<ref<Expr> > arguments;
       arguments.push_back(result);
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
     UIToFPInst *fi = cast<UIToFPInst>(i);
     Expr::Width resultType = getWidthForLLVMType(fi->getType());
@@ -2817,8 +2817,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(arg);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     }
     break;
   }
@@ -2830,7 +2830,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       std::vector<ref<Expr> > arguments;
       arguments.push_back(result);
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     } else {
       SIToFPInst *fi = cast<SIToFPInst>(i);
       Expr::Width resultType = getWidthForLLVMType(fi->getType());
@@ -2848,7 +2848,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(arg);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -2872,7 +2872,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
 
         break;
       }
@@ -2887,7 +2887,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
 
@@ -2904,7 +2904,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
       case FCmpInst::FCMP_UGT:
@@ -2918,7 +2918,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
 
@@ -2933,7 +2933,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
 
@@ -2948,7 +2948,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
 
@@ -2963,7 +2963,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
 
@@ -2978,7 +2978,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
 
@@ -2995,7 +2995,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
       case FCmpInst::FCMP_TRUE: {
@@ -3009,7 +3009,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         arguments.push_back(right);
 
         bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                         this, i, result, arguments));
+                                         this, state, i, result, arguments));
         break;
       }
       }
@@ -3115,7 +3115,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       arguments.push_back(right);
 
       bindLocal(ki, state, result, state.symbolicError->propagateError(
-                                       this, i, result, arguments));
+                                       this, state, i, result, arguments));
     }
     break;
   }
@@ -3147,8 +3147,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.push_back(agg);
     arguments.push_back(val);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
   case Instruction::ExtractValue: {
@@ -3161,8 +3161,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::vector<ref<Expr> > arguments;
     arguments.push_back(agg);
 
-    bindLocal(ki, state, result,
-              state.symbolicError->propagateError(this, i, result, arguments));
+    bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                     this, state, i, result, arguments));
     break;
   }
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)

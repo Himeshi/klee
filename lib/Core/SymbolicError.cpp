@@ -123,6 +123,21 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
   }
 }
 
+ref<Expr> SymbolicError::propagateError(Executor *executor,
+                                        ExecutionState &state,
+                                        llvm::Instruction *instr,
+                                        ref<Expr> result,
+                                        std::vector<ref<Expr> > &arguments,
+                                        unsigned int phiResultWidth) {
+  if (instr->getOpcode() == llvm::Instruction::PHI && TripCounter::instance &&
+      TripCounter::instance->isInHeaderBlock(instr) &&
+      phiResultsStack.back().find(instr) == phiResultsStack.back().end()) {
+    phiResultsStack.back()[instr] =
+        createFreshRead(executor, state, phiResultWidth);
+  }
+  return errorState->propagateError(executor, instr, result, arguments);
+}
+
 SymbolicError::~SymbolicError() {
   nonExited.clear();
 }
