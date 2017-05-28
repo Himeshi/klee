@@ -48,6 +48,10 @@ public:
   bool addBasicBlock(Executor *executor, ExecutionState &state,
                      llvm::Instruction *inst, llvm::BasicBlock *&exit);
 
+  /// \brief Create a read expression of a fresh variable
+  ref<Expr> createFreshRead(Executor *executor, ExecutionState &state,
+                            unsigned int width);
+
   /// \brief Deregister the loop in nonExited if it is exited due to iteration
   /// numbers too small (< 2).
   void deregisterLoopIfExited(Executor *executor, ExecutionState &state,

@@ -76,6 +76,13 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
   return false;
 }
 
+ref<Expr> SymbolicError::createFreshRead(Executor *executor,
+                                         ExecutionState &state,
+                                         unsigned int width) {
+  return executor->createFreshArray(state, SymbolicError::freshVariableId,
+                                    width);
+}
+
 void SymbolicError::deregisterLoopIfExited(Executor *executor,
                                            ExecutionState &state,
                                            llvm::Instruction *inst) {
@@ -93,8 +100,8 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
       Cell addressCell;
       addressCell.value = it1->second;
       ref<Expr> error = errorState->retrieveStoredError(it1->first);
-      ref<Expr> freshRead = executor->createFreshArray(
-          state, SymbolicError::freshVariableId, it1->second->getWidth());
+      ref<Expr> freshRead =
+          createFreshRead(executor, state, it1->second->getWidth());
       executor->executeMemoryOperation(state, true, addressCell, freshRead,
                                        error, 0);
     }
