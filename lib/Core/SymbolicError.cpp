@@ -115,7 +115,6 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
 }
 
 ref<Expr> SymbolicError::propagateError(Executor *executor,
-                                        ExecutionState &state,
                                         llvm::Instruction *instr,
                                         ref<Expr> result,
                                         std::vector<ref<Expr> > &arguments,
