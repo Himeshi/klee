@@ -30,6 +30,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <map>
+#include <set>
 
 namespace klee {
 
@@ -51,6 +52,8 @@ private:
   std::map<llvm::Instruction *, llvm::BasicBlock *> exitBlock;
 
   std::map<llvm::Instruction *, llvm::Instruction *> firstInstructionOfExit;
+
+  std::set<llvm::BasicBlock *> headerBlocks;
 
   void analyzeSubLoops(llvm::ScalarEvolution &se, const llvm::Loop *l);
 
@@ -80,6 +83,14 @@ public:
       return it->second;
     }
     return 0;
+  }
+
+  /// \brief Tests if the instruction is in header block
+  bool isInHeaderBlock(llvm::Instruction *instr) const {
+    if (llvm::BasicBlock *b = instr->getParent()) {
+      return headerBlocks.find(b) != headerBlocks.end();
+    }
+    return false;
   }
 
   virtual bool runOnModule(llvm::Module &m);

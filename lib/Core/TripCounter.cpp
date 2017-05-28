@@ -42,10 +42,14 @@ void TripCounter::analyzeSubLoops(llvm::ScalarEvolution &se,
                                   const llvm::Loop *l) {
   const std::vector<llvm::Loop *> &v = l->getSubLoops();
   const llvm::SCEV *scev = se.getBackedgeTakenCount(l);
+  llvm::BasicBlock *header = l->getHeader();
+
+  headerBlocks.insert(header);
+
   if (const llvm::SCEVConstant *scevConstant =
           llvm::dyn_cast<llvm::SCEVConstant>(scev)) {
     llvm::Instruction *headerFirstInst =
-        l->getHeader()->getFirstNonPHIOrDbgOrLifetime();
+        header->getFirstNonPHIOrDbgOrLifetime();
     llvm::Instruction *exitFirstInst =
         l->getExitBlock()->getFirstNonPHIOrDbgOrLifetime();
     tripCount[headerFirstInst] = scevConstant->getValue()->getSExtValue();
