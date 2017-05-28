@@ -112,19 +112,6 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
   if (it != nonExited.end()) {
     // We are exiting the loop
 
-    for (std::map<ref<Expr>, ref<Expr> >::iterator
-             it1 = writesStack.back().begin(),
-             ie1 = writesStack.back().end();
-         it1 != ie1; ++it1) {
-      Cell addressCell;
-      addressCell.value = it1->second;
-      ref<Expr> error = errorState->retrieveStoredError(it1->first);
-      ref<Expr> freshRead =
-          createFreshRead(executor, state, it1->second->getWidth());
-      executor->executeMemoryOperation(state, true, addressCell, freshRead,
-                                       error, 0);
-    }
-
     // Pop the last memory writes record
     writesStack.pop_back();
 
