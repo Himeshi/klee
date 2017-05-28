@@ -187,4 +187,18 @@ void SymbolicError::print(llvm::raw_ostream &os) const {
   } else {
     os << " (empty)";
   }
+
+  os << "\nPHI results width:";
+  if (!phiResultWidthList.empty()) {
+    for (std::map<llvm::Instruction *, unsigned int>::const_iterator
+             it = phiResultWidthList.begin(),
+             ie = phiResultWidthList.end();
+         it != ie; ++it) {
+      os << "\n[";
+      it->first->print(os);
+      os << "," << it->second << "]";
+    }
+  } else {
+    os << " (empty)";
+  }
 }
