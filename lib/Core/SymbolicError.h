@@ -25,6 +25,7 @@
 namespace klee {
 class Executor;
 class ExecutionState;
+class KInstruction;
 
 class SymbolicError {
   static uint64_t freshVariableId;
@@ -51,7 +52,7 @@ public:
 
   /// \brief Register the basic block if this basic block was a loop header
   bool addBasicBlock(Executor *executor, ExecutionState &state,
-                     llvm::Instruction *inst, llvm::BasicBlock *&exit);
+                     KInstruction *inst, llvm::BasicBlock *&exit);
 
   /// \brief Create a read expression of a fresh variable
   ref<Expr> createFreshRead(Executor *executor, ExecutionState &state,

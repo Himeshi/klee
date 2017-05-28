@@ -13,6 +13,7 @@
 #include "klee/CommandLine.h"
 #include "klee/Config/Version.h"
 #include "klee/Internal/Module/TripCounter.h"
+#include "klee/Internal/Module/KInstruction.h"
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
 #include "llvm/IR/BasicBlock.h"
@@ -27,16 +28,16 @@ using namespace klee;
 uint64_t SymbolicError::freshVariableId = 0;
 
 bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
-                                  llvm::Instruction *inst,
-                                  llvm::BasicBlock *&exit) {
+                                  KInstruction *ki, llvm::BasicBlock *&exit) {
   if (!LoopBreaking)
     return false;
 
   int64_t tripCount;
   if (TripCounter::instance &&
-      TripCounter::instance->getTripCount(inst, tripCount, exit)) {
+      TripCounter::instance->getTripCount(ki->inst, tripCount, exit)) {
     // Loop is entered
-    std::map<llvm::Instruction *, uint64_t>::iterator it = nonExited.find(inst);
+    std::map<llvm::Instruction *, uint64_t>::iterator it =
+        nonExited.find(ki->inst);
 
     bool ret = (it != nonExited.end() && it->second > 0);
     if (ret) {
@@ -70,7 +71,7 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
       writesStack.push_back(std::map<ref<Expr>, ref<Expr> >());
 
       // Set the iteration reverse count.
-      nonExited[inst] += 2;
+      nonExited[ki->inst] += 2;
     }
   }
   return false;
