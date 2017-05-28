@@ -36,6 +36,10 @@ class SymbolicError {
   /// \brief Record addresses used for writes to memory within each loop
   std::vector<std::map<ref<Expr>, ref<Expr> > > writesStack;
 
+  /// \brief This data structure records the results of phi instructions at the
+  /// header block of a loop
+  std::vector<std::map<llvm::Instruction *, ref<Expr> > > phiResultsStack;
+
 public:
   SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
 

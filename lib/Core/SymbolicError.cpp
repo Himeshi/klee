@@ -59,6 +59,9 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
         // Pop the last memory writes record
         writesStack.pop_back();
 
+        // Pop the last phi results record
+        phiResultsStack.pop_back();
+
         // Erase the loop from not-yet-exited loops map
         nonExited.erase(it);
         return true;
@@ -68,6 +71,9 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
 
       // Add element to write record
       writesStack.push_back(std::map<ref<Expr>, ref<Expr> >());
+
+      // Add element to phi results record
+      phiResultsStack.push_back(std::map<llvm::Instruction *, ref<Expr> >());
 
       // Set the iteration reverse count.
       nonExited[inst] += 2;
@@ -108,6 +114,9 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
 
     // Pop the last memory writes record
     writesStack.pop_back();
+
+    // Pop the last phi results record
+    phiResultsStack.pop_back();
 
     // Erase the loop from not-yet-exited loops map
     nonExited.erase(it);
@@ -157,6 +166,28 @@ void SymbolicError::print(llvm::raw_ostream &os) const {
       os << "\n-----------------------------";
       for (std::map<ref<Expr>, ref<Expr> >::const_iterator it1 = it->begin(),
                                                            ie1 = it->end();
+           it1 != ie1; ++it1) {
+        os << "\n[";
+        it1->first->print(os);
+        os << "] -> [";
+        it1->second->print(os);
+        os << "]";
+      }
+    }
+  } else {
+    os << " (empty)";
+  }
+
+  os << "\nPHI-results stack:";
+  if (!phiResultsStack.empty()) {
+    for (std::vector<std::map<llvm::Instruction *, ref<Expr> > >::const_iterator
+             it = phiResultsStack.begin(),
+             ie = phiResultsStack.end();
+         it != ie; ++it) {
+      os << "\n-----------------------------";
+      for (std::map<llvm::Instruction *, ref<Expr> >::const_iterator
+               it1 = it->begin(),
+               ie1 = it->end();
            it1 != ie1; ++it1) {
         os << "\n[";
         it1->first->print(os);
