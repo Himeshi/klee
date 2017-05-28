@@ -51,8 +51,8 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
           Cell addressCell;
           addressCell.value = it1->first;
           ref<Expr> error = errorState->retrieveStoredError(it1->first);
-          ref<Expr> freshRead = executor->createFreshArray(
-              state, SymbolicError::freshVariableId, it1->second->getWidth());
+          ref<Expr> freshRead =
+              createFreshRead(executor, state, it1->second->getWidth());
           executor->executeMemoryOperation(state, true, addressCell, freshRead,
                                            error, 0);
         }
