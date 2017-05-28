@@ -28,16 +28,16 @@ using namespace klee;
 uint64_t SymbolicError::freshVariableId = 0;
 
 bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
-                                  KInstruction *ki, llvm::BasicBlock *&exit) {
+                                  llvm::Instruction *inst,
+                                  llvm::BasicBlock *&exit) {
   if (!LoopBreaking)
     return false;
 
   int64_t tripCount;
   if (TripCounter::instance &&
-      TripCounter::instance->getTripCount(ki->inst, tripCount, exit)) {
+      TripCounter::instance->getTripCount(inst, tripCount, exit)) {
     // Loop is entered
-    std::map<llvm::Instruction *, uint64_t>::iterator it =
-        nonExited.find(ki->inst);
+    std::map<llvm::Instruction *, uint64_t>::iterator it = nonExited.find(inst);
 
     bool ret = (it != nonExited.end() && it->second > 0);
     if (ret) {
@@ -58,11 +58,11 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
                                            error, 0);
         }
 
-        for (std::map<llvm::Instruction *, unsigned int>::iterator
+        for (std::map<KInstruction *, unsigned int>::iterator
                  it1 = phiResultWidthList.begin(),
                  ie1 = phiResultWidthList.end();
              it1 != ie1; ++it1) {
-          ref<Expr> error = errorState->retrieveError(it1->first);
+          ref<Expr> error = errorState->retrieveError(it1->first->inst);
           if (!error.isNull()) {
             error = ExtractExpr::create(
                 MulExpr::create(ConstantExpr::create(tripCount, Expr::Int64),
@@ -71,8 +71,9 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
           } else {
             error = ConstantExpr::create(0, Expr::Int8);
           }
-          executor->bindLocal(
-              ki, state, createFreshRead(executor, state, it1->second), error);
+          executor->bindLocal(it1->first, state,
+                              createFreshRead(executor, state, it1->second),
+                              error);
         }
 
         // Pop the last memory writes record
@@ -89,7 +90,7 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
       writesStack.push_back(std::map<ref<Expr>, ref<Expr> >());
 
       // Set the iteration reverse count.
-      nonExited[ki->inst] += 2;
+      nonExited[inst] += 2;
     }
   }
   return false;
@@ -132,8 +133,8 @@ ref<Expr> SymbolicError::propagateError(Executor *executor, KInstruction *ki,
   if (ki->inst->getOpcode() == llvm::Instruction::PHI &&
       TripCounter::instance &&
       TripCounter::instance->isInHeaderBlock(ki->inst)) {
-    if (phiResultWidthList.find(ki->inst) == phiResultWidthList.end()) {
-      phiResultWidthList[ki->inst] = phiResultWidth;
+    if (phiResultWidthList.find(ki) == phiResultWidthList.end()) {
+      phiResultWidthList[ki] = phiResultWidth;
     }
   }
   return errorState->propagateError(executor, ki->inst, result, arguments);
@@ -196,12 +197,12 @@ void SymbolicError::print(llvm::raw_ostream &os) const {
 
   os << "\nPHI results width:";
   if (!phiResultWidthList.empty()) {
-    for (std::map<llvm::Instruction *, unsigned int>::const_iterator
+    for (std::map<KInstruction *, unsigned int>::const_iterator
              it = phiResultWidthList.begin(),
              ie = phiResultWidthList.end();
          it != ie; ++it) {
       os << "\n[";
-      it->first->print(os);
+      it->first->inst->print(os);
       os << "," << it->second << "]";
     }
   } else {

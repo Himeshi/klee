@@ -39,7 +39,7 @@ class SymbolicError {
 
   /// \brief This data structure records the width of the results of phi
   /// instructions at the header block of a loop
-  std::map<llvm::Instruction *, unsigned int> phiResultWidthList;
+  std::map<KInstruction *, unsigned int> phiResultWidthList;
 
 public:
   SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
@@ -52,7 +52,7 @@ public:
 
   /// \brief Register the basic block if this basic block was a loop header
   bool addBasicBlock(Executor *executor, ExecutionState &state,
-                     KInstruction *inst, llvm::BasicBlock *&exit);
+                     llvm::Instruction *inst, llvm::BasicBlock *&exit);
 
   /// \brief Create a read expression of a fresh variable
   ref<Expr> createFreshRead(Executor *executor, ExecutionState &state,

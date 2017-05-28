@@ -3421,7 +3421,8 @@ void Executor::run(ExecutionState &initialState) {
 
       llvm::BasicBlock *exitBlock;
       if (LoopBreaking) {
-        if (state.symbolicError->addBasicBlock(this, state, ki, exitBlock)) {
+        if (state.symbolicError->addBasicBlock(this, state, ki->inst,
+                                               exitBlock)) {
           transferToBasicBlock(exitBlock, ki->inst->getParent(), state);
           ki = state.pc;
         } else {
