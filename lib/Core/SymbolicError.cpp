@@ -120,23 +120,23 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
   }
 }
 
-ref<Expr> SymbolicError::propagateError(Executor *executor,
-                                        llvm::Instruction *instr,
+ref<Expr> SymbolicError::propagateError(Executor *executor, KInstruction *ki,
                                         ref<Expr> result,
                                         std::vector<ref<Expr> > &arguments,
                                         unsigned int phiResultWidth) {
   if (TripCounter::instance &&
-      TripCounter::instance->isRealFirstInstruction(instr)) {
+      TripCounter::instance->isRealFirstInstruction(ki->inst)) {
     phiResultWidthList.clear();
   }
 
-  if (instr->getOpcode() == llvm::Instruction::PHI && TripCounter::instance &&
-      TripCounter::instance->isInHeaderBlock(instr)) {
-    if (phiResultWidthList.find(instr) == phiResultWidthList.end()) {
-      phiResultWidthList[instr] = phiResultWidth;
+  if (ki->inst->getOpcode() == llvm::Instruction::PHI &&
+      TripCounter::instance &&
+      TripCounter::instance->isInHeaderBlock(ki->inst)) {
+    if (phiResultWidthList.find(ki->inst) == phiResultWidthList.end()) {
+      phiResultWidthList[ki->inst] = phiResultWidth;
     }
   }
-  return errorState->propagateError(executor, instr, result, arguments);
+  return errorState->propagateError(executor, ki->inst, result, arguments);
 }
 
 SymbolicError::~SymbolicError() {

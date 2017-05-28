@@ -67,7 +67,7 @@ public:
     errorState->outputErrorBound(inst, bound);
   }
 
-  ref<Expr> propagateError(Executor *executor, llvm::Instruction *instr,
+  ref<Expr> propagateError(Executor *executor, KInstruction *ki,
                            ref<Expr> result, std::vector<ref<Expr> > &arguments,
                            unsigned int phiResultWidth = 0);
 
