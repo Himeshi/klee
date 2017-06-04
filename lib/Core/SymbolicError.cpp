@@ -150,15 +150,15 @@ void SymbolicError::executeStore(llvm::Instruction *inst, ref<Expr> address,
   if (LoopBreaking && modifiedError) {
     errorState->executeStore(inst, address, error);
   } else {
-  if (LoopBreaking && !writesStack.empty()) {
-    if (llvm::isa<ConstantExpr>(address)) {
-      std::map<ref<Expr>, ref<Expr> > &writesMap = writesStack.back();
-      writesMap[address] = value;
-    } else {
-      assert(!"non-constant address");
+    if (LoopBreaking && !writesStack.empty()) {
+      if (llvm::isa<ConstantExpr>(address)) {
+        std::map<ref<Expr>, ref<Expr> > &writesMap = writesStack.back();
+        writesMap[address] = value;
+      } else {
+        assert(!"non-constant address");
+      }
     }
-  }
-  storeError(inst, address, error);
+    storeError(inst, address, error);
   }
 }
 
