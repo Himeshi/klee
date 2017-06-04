@@ -3965,12 +3965,10 @@ void Executor::resolveExact(ExecutionState &state,
   }
 }
 
-void Executor::executeMemoryOperation(ExecutionState &state, bool isWrite,
-                                      Cell &cell,
-                                      ref<Expr> value /* undef if read */,
-                                      ref<Expr> error /* undef if read */,
-                                      KInstruction *target /* undef if write */,
-                                      bool multipliedError) {
+void Executor::executeMemoryOperation(
+    ExecutionState &state, bool isWrite, Cell &cell,
+    ref<Expr> value /* undef if read */, ref<Expr> error /* undef if read */,
+    KInstruction *target /* undef if write */) {
   ref<Expr> address = cell.value;
   Expr::Width type = (isWrite ? value->getWidth() : 
                      getWidthForLLVMType(target->inst->getType()));
@@ -4024,7 +4022,7 @@ void Executor::executeMemoryOperation(ExecutionState &state, bool isWrite,
           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
           wos->write(offset, value);
           state.symbolicError->executeStore(state.pc->inst, address, value,
-                                            error, multipliedError);
+                                            error);
         }
       } else {
         ref<Expr> result = os->read(offset, type);

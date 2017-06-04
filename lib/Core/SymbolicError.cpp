@@ -27,6 +27,20 @@ using namespace klee;
 
 uint64_t SymbolicError::freshVariableId = 0;
 
+ref<Expr> SymbolicError::computeLoopError(int64_t tripCount,
+                                          ref<Expr> initError,
+                                          ref<Expr> endError) {
+  ref<Expr> error = ExtractExpr::create(
+      AddExpr::create(
+          ZExtExpr::create(initError, Expr::Int64),
+          MulExpr::create(
+              ConstantExpr::create(tripCount, Expr::Int64),
+              SubExpr::create(ZExtExpr::create(endError, Expr::Int64),
+                              ZExtExpr::create(initError, Expr::Int64)))),
+      0, Expr::Int8);
+  return error;
+}
+
 bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
                                   llvm::Instruction *inst,
                                   llvm::BasicBlock *&exit) {
@@ -43,8 +57,10 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
     if (ret) {
       --(it->second);
       if ((it->second) % 2 == 0) {
-        // We are exiting the loop
+        std::map<ref<Expr>, ref<Expr> > &initErrorStackElem =
+            initWritesErrorStack.back();
 
+        // We are exiting the loop
         for (std::map<ref<Expr>, ref<Expr> >::iterator
                  it1 = writesStack.back().begin(),
                  ie1 = writesStack.back().end();
@@ -52,25 +68,36 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
           Cell addressCell;
           addressCell.value = it1->first;
           ref<Expr> error = errorState->retrieveStoredError(it1->first);
+
+          std::map<ref<Expr>, ref<Expr> >::iterator initErrorIter =
+              initErrorStackElem.find(it1->first);
+          ref<Expr> initError = ConstantExpr::create(0, Expr::Int8);
+          if (initErrorIter != initErrorStackElem.end()) {
+            initError = initErrorIter->second;
+          }
+          error = computeLoopError(tripCount, initError, error);
           ref<Expr> freshRead =
               createFreshRead(executor, state, it1->second->getWidth());
           executor->executeMemoryOperation(state, true, addressCell, freshRead,
-                                           error, 0, true);
+                                           error, 0);
         }
+
+        std::map<KInstruction *, ref<Expr> > &phiResultInitErrorStackElem =
+            phiResultInitErrorStack.back();
 
         for (std::map<KInstruction *, unsigned int>::iterator
                  it1 = phiResultWidthList.begin(),
                  ie1 = phiResultWidthList.end();
              it1 != ie1; ++it1) {
-          ref<Expr> error = errorState->retrieveError(it1->first->inst);
-          if (!error.isNull()) {
-            error = ExtractExpr::create(
-                MulExpr::create(ConstantExpr::create(tripCount, Expr::Int64),
-                                ZExtExpr::create(error, Expr::Int64)),
-                0, Expr::Int8);
-          } else {
-            error = ConstantExpr::create(0, Expr::Int8);
+          ref<Expr> error = ConstantExpr::create(0, Expr::Int8);
+
+          std::map<KInstruction *, ref<Expr> >::iterator initErrorIter =
+              phiResultInitErrorStackElem.find(it1->first);
+
+          if (initErrorIter != phiResultInitErrorStackElem.end()) {
+            error = initErrorIter->second;
           }
+
           executor->bindLocal(it1->first, state,
                               createFreshRead(executor, state, it1->second),
                               error);
@@ -79,15 +106,51 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
         // Pop the last memory writes record
         writesStack.pop_back();
 
+        // Pop the top memory writes initial error record
+        initWritesErrorStack.pop_back();
+
+        // Pop the top phi result initial errors
+        phiResultInitErrorStack.pop_back();
+
         // Erase the loop from not-yet-exited loops map
         nonExited.erase(it);
         return true;
+      } else if (!phiResultInitErrorStack.empty()) {
+        // After the first iteration, entering the second iteration; we compute
+        // the errors for the returns of the PHI instructions. This is the right
+        // time to do this, since when we iterate twice, the PHIs are visited
+        // three times.
+        std::map<KInstruction *, ref<Expr> > &phiResultInitErrorStackElem =
+            phiResultInitErrorStack.back();
+
+        for (std::map<KInstruction *, ref<Expr> >::iterator
+                 it1 = phiResultInitErrorStackElem.begin(),
+                 ie1 = phiResultInitErrorStackElem.end();
+             it1 != ie1; ++it1) {
+          ref<Expr> error = errorState->retrieveError(it1->first->inst);
+          if (error.isNull()) {
+            error = ConstantExpr::create(0, Expr::Int8);
+          }
+
+          // We store the computed error amount to be used outside the loop, and
+          // store it
+          error = computeLoopError(tripCount, it1->second, error);
+          phiResultInitErrorStackElem[it1->first] = error;
+        }
       }
     } else {
       // Loop is entered for the first time
 
       // Add element to write record
       writesStack.push_back(std::map<ref<Expr>, ref<Expr> >());
+
+      // Add element to init writes error stack
+      initWritesErrorStack.push_back(std::map<ref<Expr>, ref<Expr> >());
+
+      // Add element to the phi result initial errors stack
+      std::map<KInstruction *, ref<Expr> > phiResultInitError =
+          tmpPhiResultInitError;
+      phiResultInitErrorStack.push_back(phiResultInitError);
 
       // Set the iteration reverse count.
       nonExited[inst] += 2;
@@ -116,6 +179,12 @@ void SymbolicError::deregisterLoopIfExited(Executor *executor,
     // Pop the last memory writes record
     writesStack.pop_back();
 
+    // Pop the top memory writes initial error record
+    initWritesErrorStack.pop_back();
+
+    // Pop the top phi result initial errors
+    phiResultInitErrorStack.pop_back();
+
     // Erase the loop from not-yet-exited loops map
     nonExited.erase(it);
   }
@@ -125,19 +194,26 @@ ref<Expr> SymbolicError::propagateError(Executor *executor, KInstruction *ki,
                                         ref<Expr> result,
                                         std::vector<ref<Expr> > &arguments,
                                         unsigned int phiResultWidth) {
-  if (TripCounter::instance &&
-      TripCounter::instance->isRealFirstInstruction(ki->inst)) {
-    phiResultWidthList.clear();
-  }
+  ref<Expr> error =
+      errorState->propagateError(executor, ki->inst, result, arguments);
 
-  if (ki->inst->getOpcode() == llvm::Instruction::PHI &&
-      TripCounter::instance &&
-      TripCounter::instance->isInHeaderBlock(ki->inst)) {
-    if (phiResultWidthList.find(ki) == phiResultWidthList.end()) {
-      phiResultWidthList[ki] = phiResultWidth;
+  if (LoopBreaking) {
+    if (TripCounter::instance &&
+        TripCounter::instance->isRealFirstInstruction(ki->inst)) {
+      phiResultWidthList.clear();
+      tmpPhiResultInitError.clear();
+    }
+
+    if (ki->inst->getOpcode() == llvm::Instruction::PHI &&
+        TripCounter::instance &&
+        TripCounter::instance->isInHeaderBlock(ki->inst)) {
+      if (phiResultWidthList.find(ki) == phiResultWidthList.end()) {
+        phiResultWidthList[ki] = phiResultWidth;
+      }
+      tmpPhiResultInitError[ki] = error;
     }
   }
-  return errorState->propagateError(executor, ki->inst, result, arguments);
+  return error;
 }
 
 SymbolicError::~SymbolicError() {
@@ -145,21 +221,23 @@ SymbolicError::~SymbolicError() {
 }
 
 void SymbolicError::executeStore(llvm::Instruction *inst, ref<Expr> address,
-                                 ref<Expr> value, ref<Expr> error,
-                                 bool modifiedError) {
-  if (LoopBreaking && modifiedError) {
-    errorState->executeStore(inst, address, error);
-  } else {
+                                 ref<Expr> value, ref<Expr> error) {
     if (LoopBreaking && !writesStack.empty()) {
       if (llvm::isa<ConstantExpr>(address)) {
         std::map<ref<Expr>, ref<Expr> > &writesMap = writesStack.back();
         writesMap[address] = value;
+
+        std::map<ref<Expr>, ref<Expr> > &initErrorMap =
+            initWritesErrorStack.back();
+        if (initWritesErrorStack.back().find(address) ==
+            initWritesErrorStack.back().end()) {
+          initErrorMap[address] = error;
+        }
       } else {
         assert(!"non-constant address");
       }
     }
     storeError(inst, address, error);
-  }
 }
 
 void SymbolicError::print(llvm::raw_ostream &os) const {

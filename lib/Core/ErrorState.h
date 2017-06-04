@@ -61,9 +61,6 @@ public:
 
   std::string &getOutputString() { return outputString; }
 
-  void executeStore(llvm::Instruction *inst, ref<Expr> address,
-                    ref<Expr> error);
-
   void executeStoreSimple(llvm::Instruction *inst, ref<Expr> address,
                           ref<Expr> error);
 

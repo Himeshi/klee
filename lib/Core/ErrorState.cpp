@@ -336,36 +336,6 @@ ref<Expr> ErrorState::propagateError(Executor *executor,
   return ConstantExpr::create(0, Expr::Int8);
 }
 
-void ErrorState::executeStore(llvm::Instruction *inst, ref<Expr> address,
-                              ref<Expr> error) {
-  if (error.isNull())
-    return;
-
-  // At store instruction, we store new error by a multiply of the stored error
-  // with the loop trip count.
-  if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
-    uint64_t intAddress = cp->getZExtValue();
-    if (LoopBreaking) {
-      std::map<uint64_t, ref<Expr> >::iterator it =
-          storedError.find(intAddress);
-      if (it != storedError.end()) {
-        long int count;
-        llvm::BasicBlock *dummyBb;
-        TripCounter::instance->getTripCount(inst, count, dummyBb);
-        if (count > 0) {
-          error = ExtractExpr::create(
-              MulExpr::create(ConstantExpr::create(count, Expr::Int64),
-                              ZExtExpr::create(error, Expr::Int64)),
-              0, Expr::Int8);
-        }
-      }
-    }
-    storedError[intAddress] = error;
-    return;
-  }
-  assert(!"non-constant address");
-}
-
 void ErrorState::executeStoreSimple(llvm::Instruction *inst, ref<Expr> address,
                                     ref<Expr> error) {
   if (error.isNull())

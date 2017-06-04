@@ -37,18 +37,38 @@ class SymbolicError {
   /// \brief Record addresses used for writes to memory within each loop
   std::vector<std::map<ref<Expr>, ref<Expr> > > writesStack;
 
+  /// \brief Record errors written into memory addresses within each loop
+  std::vector<std::map<ref<Expr>, ref<Expr> > > initWritesErrorStack;
+
   /// \brief This data structure records the width of the results of phi
   /// instructions at the header block of a loop
   std::map<KInstruction *, unsigned int> phiResultWidthList;
+
+  /// \brief This data structure records the initial
+  std::vector<std::map<KInstruction *, ref<Expr> > > phiResultInitErrorStack;
+
+  /// \brief Temporary PHI result initial error amount
+  std::map<KInstruction *, ref<Expr> > tmpPhiResultInitError;
 
 public:
   SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
 
   SymbolicError(SymbolicError &symErr)
       : errorState(symErr.errorState), nonExited(symErr.nonExited),
-        writesStack(symErr.writesStack) {}
+        writesStack(symErr.writesStack),
+        initWritesErrorStack(symErr.initWritesErrorStack),
+        phiResultWidthList(symErr.phiResultWidthList),
+        phiResultInitErrorStack(symErr.phiResultInitErrorStack),
+        tmpPhiResultInitError(symErr.tmpPhiResultInitError) {}
 
   ~SymbolicError();
+
+  /// \brief Compute the error introduced by the loop's computation, which
+  /// is (initError + tripCount * (endError - initError)). endError is
+  /// the error after a single iteration (e.g., between same target store
+  /// instructions).
+  static ref<Expr> computeLoopError(int64_t tripCount, ref<Expr> initError,
+                                    ref<Expr> endError);
 
   /// \brief Register the basic block if this basic block was a loop header
   bool addBasicBlock(Executor *executor, ExecutionState &state,
@@ -78,7 +98,7 @@ public:
   std::string &getOutputString() { return errorState->getOutputString(); }
 
   void executeStore(llvm::Instruction *inst, ref<Expr> address, ref<Expr> value,
-                    ref<Expr> error, bool unmodifiedError = 0);
+                    ref<Expr> error);
 
   void storeError(llvm::Instruction *inst, ref<Expr> address, ref<Expr> error) {
     errorState->executeStoreSimple(inst, address, error);
