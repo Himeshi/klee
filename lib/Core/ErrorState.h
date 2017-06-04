@@ -64,6 +64,9 @@ public:
   void executeStore(llvm::Instruction *inst, ref<Expr> address,
                     ref<Expr> error);
 
+  void executeStoreSimple(llvm::Instruction *inst, ref<Expr> address,
+                          ref<Expr> error);
+
   ref<Expr> retrieveStoredError(ref<Expr> address) const;
 
   ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address);

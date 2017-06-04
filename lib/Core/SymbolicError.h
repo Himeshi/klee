@@ -78,10 +78,10 @@ public:
   std::string &getOutputString() { return errorState->getOutputString(); }
 
   void executeStore(llvm::Instruction *inst, ref<Expr> address, ref<Expr> value,
-                    ref<Expr> error);
+                    ref<Expr> error, bool unmodifiedError = 0);
 
   void storeError(llvm::Instruction *inst, ref<Expr> address, ref<Expr> error) {
-    errorState->executeStore(inst, address, error);
+    errorState->executeStoreSimple(inst, address, error);
   }
 
   ref<Expr> executeLoad(llvm::Value *value, ref<Expr> address) {

@@ -366,6 +366,21 @@ void ErrorState::executeStore(llvm::Instruction *inst, ref<Expr> address,
   assert(!"non-constant address");
 }
 
+void ErrorState::executeStoreSimple(llvm::Instruction *inst, ref<Expr> address,
+                                    ref<Expr> error) {
+  if (error.isNull())
+    return;
+
+  // At store instruction, we store new error by a multiply of the stored error
+  // with the loop trip count.
+  if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {
+    uint64_t intAddress = cp->getZExtValue();
+    storedError[intAddress] = error;
+    return;
+  }
+  assert(!"non-constant address");
+}
+
 ref<Expr> ErrorState::retrieveStoredError(ref<Expr> address) const {
   ref<Expr> error = ConstantExpr::create(0, Expr::Int8);
   if (ConstantExpr *cp = llvm::dyn_cast<ConstantExpr>(address)) {

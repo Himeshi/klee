@@ -300,7 +300,8 @@ private:
   void executeMemoryOperation(ExecutionState &state, bool isWrite, Cell &cell,
                               ref<Expr> value /* undef if read */,
                               ref<Expr> error /* undef if read */,
-                              KInstruction *target /* undef if write */);
+                              KInstruction *target /* undef if write */,
+                              bool multipliedError = 0);
 
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
                            const std::string &name);

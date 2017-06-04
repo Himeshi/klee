@@ -55,7 +55,7 @@ bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
           ref<Expr> freshRead =
               createFreshRead(executor, state, it1->second->getWidth());
           executor->executeMemoryOperation(state, true, addressCell, freshRead,
-                                           error, 0);
+                                           error, 0, true);
         }
 
         for (std::map<KInstruction *, unsigned int>::iterator
@@ -145,7 +145,11 @@ SymbolicError::~SymbolicError() {
 }
 
 void SymbolicError::executeStore(llvm::Instruction *inst, ref<Expr> address,
-                                 ref<Expr> value, ref<Expr> error) {
+                                 ref<Expr> value, ref<Expr> error,
+                                 bool modifiedError) {
+  if (LoopBreaking && modifiedError) {
+    errorState->executeStore(inst, address, error);
+  } else {
   if (LoopBreaking && !writesStack.empty()) {
     if (llvm::isa<ConstantExpr>(address)) {
       std::map<ref<Expr>, ref<Expr> > &writesMap = writesStack.back();
@@ -155,6 +159,7 @@ void SymbolicError::executeStore(llvm::Instruction *inst, ref<Expr> address,
     }
   }
   storeError(inst, address, error);
+  }
 }
 
 void SymbolicError::print(llvm::raw_ostream &os) const {
