@@ -64,9 +64,10 @@ public:
   ~SymbolicError();
 
   /// \brief Compute the error introduced by the loop's computation, which
-  /// is (initError + tripCount * (endError - initError)). endError is
-  /// the error after a single iteration (e.g., between same target store
-  /// instructions).
+  /// is (initError + (tripCount - 1) * (endError - initError)). initError
+  /// is the error at the first iteration of the loop, while endError is
+  /// the error at the second iteration of the loop (e.g., between same target
+  /// store instructions).
   static ref<Expr> computeLoopError(int64_t tripCount, ref<Expr> initError,
                                     ref<Expr> endError);
 

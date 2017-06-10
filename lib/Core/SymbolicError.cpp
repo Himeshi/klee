@@ -34,7 +34,7 @@ ref<Expr> SymbolicError::computeLoopError(int64_t tripCount,
       AddExpr::create(
           ZExtExpr::create(initError, Expr::Int64),
           MulExpr::create(
-              ConstantExpr::create(tripCount, Expr::Int64),
+              ConstantExpr::create(tripCount - 1, Expr::Int64),
               SubExpr::create(ZExtExpr::create(endError, Expr::Int64),
                               ZExtExpr::create(initError, Expr::Int64)))),
       0, Expr::Int8);
