@@ -206,7 +206,7 @@ ref<Expr> SymbolicError::propagateError(Executor *executor, KInstruction *ki,
 
     if (ki->inst->getOpcode() == llvm::Instruction::PHI &&
         TripCounter::instance &&
-        TripCounter::instance->isInHeaderBlock(ki->inst)) {
+        TripCounter::instance->isInHeaderBlockWithTripCount(ki->inst)) {
       if (phiResultWidthList.find(ki) == phiResultWidthList.end()) {
         phiResultWidthList[ki] = phiResultWidth;
       }

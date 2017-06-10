@@ -87,10 +87,17 @@ public:
     return 0;
   }
 
-  /// \brief Tests if the instruction is in header block
-  bool isInHeaderBlock(llvm::Instruction *instr) const {
+  /// \brief Tests if the instruction is in header block of a loop with trip
+  /// count
+  bool isInHeaderBlockWithTripCount(llvm::Instruction *instr) const {
     if (llvm::BasicBlock *b = instr->getParent()) {
-      return headerBlocks.find(b) != headerBlocks.end();
+      if (headerBlocks.find(b) != headerBlocks.end()) {
+        std::map<llvm::BasicBlock *, llvm::Instruction *>::const_iterator it =
+            blockToFirstInstruction.find(b);
+        if (it != blockToFirstInstruction.end() &&
+            tripCount.find(it->second) != tripCount.end())
+          return true;
+      }
     }
     return false;
   }
