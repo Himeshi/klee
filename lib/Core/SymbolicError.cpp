@@ -259,26 +259,59 @@ void SymbolicError::print(llvm::raw_ostream &os) const {
 
   os << "\nWrites stack:";
   if (!writesStack.empty()) {
+    bool stackPrinted = false;
     for (std::vector<std::map<ref<Expr>, ref<Expr> > >::const_iterator
              it = writesStack.begin(),
              ie = writesStack.end();
          it != ie; ++it) {
-      os << "\n-----------------------------";
-      for (std::map<ref<Expr>, ref<Expr> >::const_iterator it1 = it->begin(),
-                                                           ie1 = it->end();
-           it1 != ie1; ++it1) {
-        os << "\n[";
-        it1->first->print(os);
-        os << "] -> [";
-        it1->second->print(os);
-        os << "]";
+      if (!(*it).empty()) {
+        stackPrinted = true;
+        os << "\n-----------------------------";
+        for (std::map<ref<Expr>, ref<Expr> >::const_iterator it1 = it->begin(),
+                                                             ie1 = it->end();
+             it1 != ie1; ++it1) {
+          os << "\n[";
+          it1->first->print(os);
+          os << "] -> [";
+          it1->second->print(os);
+          os << "]";
+        }
       }
     }
+    if (!stackPrinted)
+      os << " (empty frames)";
   } else {
     os << " (empty)";
   }
 
-  os << "\nPHI results width:";
+  os << "\nErrors Initially Written:";
+  if (!initWritesErrorStack.empty()) {
+    bool stackPrinted = false;
+    for (std::vector<std::map<ref<Expr>, ref<Expr> > >::const_iterator
+             it = initWritesErrorStack.begin(),
+             ie = initWritesErrorStack.end();
+         it != ie; ++it) {
+      if (!(*it).empty()) {
+        stackPrinted = true;
+        os << "\n-----------------------------";
+        for (std::map<ref<Expr>, ref<Expr> >::const_iterator it1 = it->begin(),
+                                                             ie1 = it->end();
+             it1 != ie1; ++it1) {
+          os << "\n[";
+          it1->first->print(os);
+          os << "] -> [";
+          it1->second->print(os);
+          os << "]";
+        }
+      }
+    }
+    if (!stackPrinted)
+      os << " (empty frames)";
+  } else {
+    os << " (empty)";
+  }
+
+  os << "\nLoop header PHI results widths:";
   if (!phiResultWidthList.empty()) {
     for (std::map<KInstruction *, unsigned int>::const_iterator
              it = phiResultWidthList.begin(),
@@ -288,6 +321,34 @@ void SymbolicError::print(llvm::raw_ostream &os) const {
       it->first->inst->print(os);
       os << "," << it->second << "]";
     }
+  } else {
+    os << " (empty)";
+  }
+
+  os << "\nLoop header PHI results initial error values:";
+  if (!phiResultInitErrorStack.empty()) {
+    bool stackPrinted = false;
+    for (std::vector<std::map<KInstruction *, ref<Expr> > >::const_iterator
+             it = phiResultInitErrorStack.begin(),
+             ie = phiResultInitErrorStack.end();
+         it != ie; ++it) {
+      if (!(*it).empty()) {
+        stackPrinted = true;
+        os << "\n-----------------------------";
+        for (std::map<KInstruction *, ref<Expr> >::const_iterator
+                 it1 = it->begin(),
+                 ie1 = it->end();
+             it1 != ie1; ++it1) {
+          os << "\n[";
+          it1->first->inst->print(os);
+          os << ",";
+          it1->second->print(os);
+          os << "]";
+        }
+      }
+    }
+    if (!stackPrinted)
+      os << " (empty frames)";
   } else {
     os << " (empty)";
   }
