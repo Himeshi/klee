@@ -82,7 +82,11 @@ ref<Expr> ErrorState::getError(Executor *executor, ref<Expr> valueExpr,
     // TODO: Add correct error expression here
     ret = AddExpr::create(lhsError, rhsError);
   } else if (!llvm::isa<ConstantExpr>(valueExpr)) {
-    assert(!"malformed expression");
+    // FIXME: We assume all other symbolic expressions have an error which is
+    // the sum of all of the errors of its reads
+    for (unsigned i = 0; i < valueExpr->getNumKids(); ++i) {
+      ret = AddExpr::create(getError(executor, valueExpr->getKid(i)), ret);
+    }
   }
 
   if (value) {
