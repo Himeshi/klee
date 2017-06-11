@@ -132,4 +132,4 @@ void TripCounter::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 char TripCounter::ID = 0;
 
 static llvm::RegisterPass<TripCounter>
-X("analysis-wrapper", "Calls all necessary LLVM analyses and transforms");
+X("trip-counter", "Pass to collect loop trip counts");
