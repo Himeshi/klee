@@ -4194,14 +4194,12 @@ ref<Expr> Executor::createFreshArray(ExecutionState &state, uint64_t &id,
   // Find a unique name for this array.  First try the original name,
   // or if that fails try adding a unique identifier. Shamelessly copied from
   // executeMakeSymbolic.
-  std::string name = "_fresh_" + llvm::utostr(id);
-  std::string uniqueName = name;
+  std::string uniqueName = "_fresh_" + llvm::utostr(++id);
   while (!state.arrayNames.insert(uniqueName).second) {
-    uniqueName = name + "_" + llvm::utostr(++id);
+    uniqueName = "_fresh_" + llvm::utostr(++id);
   }
   const Array *array = arrayCache.CreateArray(uniqueName, width);
-  return ReadExpr::create(UpdateList(array, 0),
-                          ConstantExpr::create(0, array->getDomain()));
+  return Expr::createTempRead(array, width);
 }
 
 /***/
