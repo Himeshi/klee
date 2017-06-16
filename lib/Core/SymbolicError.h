@@ -71,7 +71,12 @@ public:
   static ref<Expr> computeLoopError(int64_t tripCount, ref<Expr> initError,
                                     ref<Expr> endError);
 
-  /// \brief Register the basic block if this basic block was a loop header
+  /// \brief Detect if we should exit the loop (when about to execute the third
+  /// iteration). This member function maintains a virtual iteration count for
+  /// each executed loop in the notExited map. The count is incremented by 2
+  /// upon first entry of the loop, and decremented at each iteration. When the
+  /// virtual iteration count is a multiply of 2, the loop should be broken so
+  /// that we exit to the exit block.
   bool breakLoop(Executor *executor, ExecutionState &state,
                  llvm::Instruction *inst, llvm::BasicBlock *&exit);
 

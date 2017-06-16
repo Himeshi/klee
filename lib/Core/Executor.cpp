@@ -3424,8 +3424,6 @@ void Executor::run(ExecutionState &initialState) {
         if (state.symbolicError->breakLoop(this, state, ki->inst, exitBlock)) {
           transferToBasicBlock(exitBlock, ki->inst->getParent(), state);
           ki = state.pc;
-        } else {
-          state.symbolicError->deregisterLoopIfExited(this, state, ki->inst);
         }
       }
       executeInstruction(state, ki);

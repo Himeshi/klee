@@ -44,8 +44,10 @@ ref<Expr> SymbolicError::computeLoopError(int64_t tripCount,
 bool SymbolicError::breakLoop(Executor *executor, ExecutionState &state,
                               llvm::Instruction *inst,
                               llvm::BasicBlock *&exit) {
-  if (!LoopBreaking)
+  if (!LoopBreaking) {
+    deregisterLoopIfExited(executor, state, inst);
     return false;
+  }
 
   int64_t tripCount;
   if (TripCounter::instance &&
@@ -156,6 +158,8 @@ bool SymbolicError::breakLoop(Executor *executor, ExecutionState &state,
       nonExited[inst] += 2;
     }
   }
+
+  deregisterLoopIfExited(executor, state, inst);
   return false;
 }
 
