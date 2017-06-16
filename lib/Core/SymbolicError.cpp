@@ -69,8 +69,11 @@ bool SymbolicError::breakLoop(Executor *executor, ExecutionState &state,
              it1 != ie1; ++it1) {
           Cell addressCell;
           addressCell.value = it1->first;
+
+          // We retrieve the error stored in the address
           ref<Expr> error = errorState->retrieveStoredError(it1->first);
 
+          // We retrieve the initial error stored in the address
           std::map<ref<Expr>, ref<Expr> >::iterator initErrorIter =
               initErrorStackElem.find(it1->first);
           ref<Expr> initError = ConstantExpr::create(0, Expr::Int8);
@@ -80,10 +83,17 @@ bool SymbolicError::breakLoop(Executor *executor, ExecutionState &state,
           error = computeLoopError(tripCount, initError, error);
           ref<Expr> freshRead =
               createFreshRead(executor, state, it1->second->getWidth());
+
+          // We actually perform an update to KLEE's shadow memory to store the
+          // error and an unknown value (freshRead) of the value itself.
           executor->executeMemoryOperation(state, true, addressCell, freshRead,
                                            error, 0);
         }
 
+        // Here we simply retrieve the error amounts for PHIs already stored in
+        // phiResultErrorInitStack, that was computed in the previous iteration.
+        // So differently to memory store above, we no longer call
+        // computeLoopError.
         std::map<KInstruction *, ref<Expr> > &phiResultInitErrorStackElem =
             phiResultInitErrorStack.back();
 
@@ -227,6 +237,7 @@ SymbolicError::~SymbolicError() {
 void SymbolicError::executeStore(llvm::Instruction *inst, ref<Expr> address,
                                  ref<Expr> value, ref<Expr> error) {
     if (LoopBreaking && !writesStack.empty()) {
+      // Record the error at each store at each iteration.
       if (llvm::isa<ConstantExpr>(address)) {
         std::map<ref<Expr>, ref<Expr> > &writesMap = writesStack.back();
         writesMap[address] = value;

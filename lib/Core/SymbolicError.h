@@ -40,7 +40,8 @@ class SymbolicError {
   /// \brief Record addresses used for writes to memory within each loop
   std::vector<std::map<ref<Expr>, ref<Expr> > > writesStack;
 
-  /// \brief Record errors written into memory addresses within each loop
+  /// \brief Record initial errors written into memory addresses within each
+  /// loop
   std::vector<std::map<ref<Expr>, ref<Expr> > > initWritesErrorStack;
 
   /// \brief This data structure records the width of the results of phi
