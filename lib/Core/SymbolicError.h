@@ -32,6 +32,9 @@ class SymbolicError {
 
   ref<ErrorState> errorState;
 
+  /// \brief This map implements a stacking of cascading loops: This records the
+  /// current loops not yet exited, and their corresponding virtual iteration
+  /// counts.
   std::map<llvm::Instruction *, uint64_t> nonExited;
 
   /// \brief Record addresses used for writes to memory within each loop
