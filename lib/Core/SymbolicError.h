@@ -72,8 +72,8 @@ public:
                                     ref<Expr> endError);
 
   /// \brief Register the basic block if this basic block was a loop header
-  bool addBasicBlock(Executor *executor, ExecutionState &state,
-                     llvm::Instruction *inst, llvm::BasicBlock *&exit);
+  bool breakLoop(Executor *executor, ExecutionState &state,
+                 llvm::Instruction *inst, llvm::BasicBlock *&exit);
 
   /// \brief Create a read expression of a fresh variable
   ref<Expr> createFreshRead(Executor *executor, ExecutionState &state,

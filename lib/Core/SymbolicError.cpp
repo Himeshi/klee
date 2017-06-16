@@ -41,9 +41,9 @@ ref<Expr> SymbolicError::computeLoopError(int64_t tripCount,
   return error;
 }
 
-bool SymbolicError::addBasicBlock(Executor *executor, ExecutionState &state,
-                                  llvm::Instruction *inst,
-                                  llvm::BasicBlock *&exit) {
+bool SymbolicError::breakLoop(Executor *executor, ExecutionState &state,
+                              llvm::Instruction *inst,
+                              llvm::BasicBlock *&exit) {
   if (!LoopBreaking)
     return false;
 
