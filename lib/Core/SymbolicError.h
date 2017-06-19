@@ -58,8 +58,8 @@ public:
   SymbolicError() { errorState = ref<ErrorState>(new ErrorState()); }
 
   SymbolicError(SymbolicError &symErr)
-      : errorState(symErr.errorState), nonExited(symErr.nonExited),
-        writesStack(symErr.writesStack),
+      : errorState(new ErrorState(*(symErr.errorState))),
+        nonExited(symErr.nonExited), writesStack(symErr.writesStack),
         initWritesErrorStack(symErr.initWritesErrorStack),
         phiResultWidthList(symErr.phiResultWidthList),
         phiResultInitErrorStack(symErr.phiResultInitErrorStack),
