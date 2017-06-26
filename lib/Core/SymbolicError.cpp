@@ -30,6 +30,20 @@ uint64_t SymbolicError::freshVariableId = 0;
 ref<Expr> SymbolicError::computeLoopError(int64_t tripCount,
                                           ref<Expr> initError,
                                           ref<Expr> endError) {
+  if (ConstantExpr *ce = llvm::dyn_cast<ConstantExpr>(endError)) {
+    // In case the second stored error was a constant, then the resulting error
+    // is the constant.
+    return endError;
+  }
+  if (ConstantExpr *ce = llvm::dyn_cast<ConstantExpr>(initError)) {
+    // In case the first stored error was a constant and the second stored error
+    // was a non-constant symbolic expression, then the resulting error was the
+    // symbolic expression.
+    return endError;
+  }
+  // In case both the first and the second stored errors were non-constant
+  // symbolic expressions, then the error amount is: the first stored error +
+  // (trip count - 1) * (second stored error - first stored error).
   ref<Expr> error = ExtractExpr::create(
       AddExpr::create(
           ZExtExpr::create(initError, Expr::Int64),
