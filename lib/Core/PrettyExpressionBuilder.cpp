@@ -71,13 +71,13 @@ std::string PrettyExpressionBuilder::bvSExtConst(uint64_t value) {
 }
 std::string PrettyExpressionBuilder::bvBoolExtract(std::string expr, int bit) {
   std::ostringstream stream;
-  stream << expr << "[" << bit << "]";
+  stream << expr;
   return stream.str();
 }
 std::string PrettyExpressionBuilder::bvExtract(std::string expr, unsigned top,
                                                unsigned bottom) {
   std::ostringstream stream;
-  stream << expr << "[" << top << "," << bottom << "]";
+  stream << expr;
   return stream.str();
 }
 std::string PrettyExpressionBuilder::eqExpr(std::string a, std::string b) {
@@ -171,14 +171,14 @@ std::string PrettyExpressionBuilder::writeExpr(std::string array,
 }
 std::string PrettyExpressionBuilder::readExpr(std::string array,
                                               std::string index) {
-  return array + "[" + index + "]";
+  return array;
 }
 
 // ITE-expression constructor
 std::string PrettyExpressionBuilder::iteExpr(std::string condition,
                                              std::string whenTrue,
                                              std::string whenFalse) {
-  return "ite(" + condition + "," + whenTrue + "," + whenFalse + ")";
+  return "((" + condition + ") ? " + whenTrue + "," + whenFalse + ")";
 }
 
 // Bitvector comparison
@@ -290,9 +290,6 @@ std::string PrettyExpressionBuilder::constructActual(ref<Expr> e) {
     ConcatExpr *ce = cast<ConcatExpr>(e);
     unsigned numKids = ce->getNumKids();
     std::string res = constructActual(ce->getKid(numKids - 1));
-    for (int i = numKids - 2; i >= 0; i--) {
-      res = constructActual(ce->getKid(i)) + "." + res;
-    }
     return res;
   }
 
