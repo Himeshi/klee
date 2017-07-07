@@ -490,7 +490,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
     // Output the symbolic error
     std::string errors = state.symbolicError->getOutputString();
     if (!errors.empty()) {
-      llvm::raw_ostream *f = openTestFile("fp_error", id);
+      llvm::raw_ostream *f = openTestFile("precision_error", id);
       *f << errors;
       delete f;
     }
