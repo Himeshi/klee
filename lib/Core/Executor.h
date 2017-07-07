@@ -89,6 +89,7 @@ class Executor : public Interpreter {
   friend class WeightedRandomSearcher;
   friend class SpecialFunctionHandler;
   friend class StatsTracker;
+  friend class SymbolicError;
 
 public:
   class Timer {
@@ -308,6 +309,10 @@ private:
   void executeStoreError(ExecutionState &state, const uintptr_t address,
                          const std::string &name);
 
+  // Create a read expression from a fresh array
+  ref<Expr> createFreshArray(ExecutionState &state, uint64_t &id,
+                             Expr::Width width);
+
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
   /// as one of the results. Note that the output vector may included
@@ -467,8 +472,8 @@ public:
     replayPosition = 0;
   }
 
-  virtual const llvm::Module *
-  setModule(llvm::Module *module, const ModuleOptions &opts);
+  virtual llvm::Module *setModule(llvm::Module *module,
+                                  const ModuleOptions &opts);
 
   virtual void useSeeds(const std::vector<struct KTest *> *seeds) { 
     usingSeeds = seeds;

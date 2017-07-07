@@ -22,6 +22,11 @@
 #include "klee/Internal/Support/PrintVersion.h"
 #include "klee/Internal/Support/ErrorHandling.h"
 
+#include "llvm/InitializePasses.h"
+#include "llvm/Pass.h"
+#include "llvm/PassManager.h"
+
+#include "../../include/klee/Internal/Module/TripCounter.h"
 #if LLVM_VERSION_CODE > LLVM_VERSION(3, 2)
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
@@ -1408,8 +1413,14 @@ int main(int argc, char **argv, char **envp) {
   }
   handler->getInfoStream() << "PID: " << getpid() << "\n";
 
-  const Module *finalModule =
-    interpreter->setModule(mainModule, Opts);
+  Module *analysisModule = interpreter->setModule(mainModule, Opts);
+
+  llvm::PassManager PM;
+  TripCounter::instance = new TripCounter();
+  PM.add(TripCounter::instance);
+  PM.run(*analysisModule);
+
+  const Module *finalModule = analysisModule;
   externalsAndGlobalsCheck(finalModule);
 
   if (ReplayPathFile != "") {
