@@ -30,12 +30,12 @@ uint64_t SymbolicError::freshVariableId = 0;
 ref<Expr> SymbolicError::computeLoopError(int64_t tripCount,
                                           ref<Expr> initError,
                                           ref<Expr> endError) {
-  if (ConstantExpr *ce = llvm::dyn_cast<ConstantExpr>(endError)) {
+  if (llvm::isa<ConstantExpr>(endError)) {
     // In case the second stored error was a constant, then the resulting error
     // is the constant.
     return endError;
   }
-  if (ConstantExpr *ce = llvm::dyn_cast<ConstantExpr>(initError)) {
+  if (llvm::isa<ConstantExpr>(initError)) {
     // In case the first stored error was a constant and the second stored error
     // was a non-constant symbolic expression, then the resulting error was the
     // symbolic expression.
