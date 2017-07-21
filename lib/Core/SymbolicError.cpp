@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SymbolicError.h"
+#include "klee/util/PrettyExpressionBuilder.h"
 
 #include "Executor.h"
 #include "klee/CommandLine.h"

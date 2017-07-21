@@ -12,6 +12,7 @@
 #include "klee/CommandLine.h"
 #include "klee/Config/Version.h"
 #include "klee/Internal/Module/TripCounter.h"
+#include "klee/util/PrettyExpressionBuilder.h"
 
 #include "llvm/DebugInfo.h"
 
@@ -132,7 +133,7 @@ void ErrorState::outputErrorBound(llvm::Instruction *inst, double bound) {
   }
 
   stream << errorVar << " == (";
-  e->print(stream);
+  stream << PrettyExpressionBuilder::construct(e);
   stream << ") && ";
   stream << "(" << errorVar << " <= " << bound << ") && ";
   stream << "(" << errorVar << " >= -" << bound << ")\n";
