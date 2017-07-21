@@ -80,6 +80,7 @@ extern "C" {
   
   /* print the tree associated w/ a given expression. */
   void klee_print_expr(const char *msg, ...);
+  void klee_print_error_expr(const char *msg, ...);
   
   /* NB: this *does not* fork n times and return [0,n) in children.
    * It makes n be symbolic and returns: caller must compare N times.
@@ -154,6 +155,13 @@ extern "C" {
 
   /* Merge current states together if possible */
   void klee_merge();
+
+  /* Outputs precision error expression */
+  void klee_bound_error(uintptr_t n, double bound);
+
+  /* Track error amount of a memory object */
+  void klee_track_error(void *addr, const char *name);
+
 #ifdef __cplusplus
 }
 #endif

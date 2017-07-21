@@ -41,6 +41,7 @@ namespace llvm {
   class Function;
   class GlobalValue;
   class Instruction;
+  class LLVMContext;
 #if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
   class TargetData;
 #else
@@ -88,6 +89,7 @@ class Executor : public Interpreter {
   friend class WeightedRandomSearcher;
   friend class SpecialFunctionHandler;
   friend class StatsTracker;
+  friend class SymbolicError;
 
 public:
   class Timer {
@@ -101,7 +103,24 @@ public:
 
   typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
 
+  enum TerminateReason {
+    Abort,
+    Assert,
+    Exec,
+    External,
+    Free,
+    Model,
+    Overflow,
+    Ptr,
+    ReadOnly,
+    ReportError,
+    User,
+    Unhandled
+  };
+
 private:
+  static const char *TerminateReasonNames[];
+
   class TimerInfo;
 
   KModule *kmodule;
@@ -272,22 +291,27 @@ private:
   void executeFree(ExecutionState &state,
                    ref<Expr> address,
                    KInstruction *target = 0);
-  
-  void executeCall(ExecutionState &state, 
-                   KInstruction *ki,
-                   llvm::Function *f,
-                   std::vector< ref<Expr> > &arguments);
-                   
+
+  void executeCall(ExecutionState &state, KInstruction *ki, llvm::Function *f,
+                   std::vector<Cell> &arguments);
+
   // do address resolution / object binding / out of bounds checking
   // and perform the operation
-  void executeMemoryOperation(ExecutionState &state,
-                              bool isWrite,
-                              ref<Expr> address,
+  void executeMemoryOperation(ExecutionState &state, bool isWrite, Cell &cell,
                               ref<Expr> value /* undef if read */,
+                              ref<Expr> error /* undef if read */,
                               KInstruction *target /* undef if write */);
 
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
                            const std::string &name);
+
+  // store the error amount of a memory object at a given address
+  void executeStoreError(ExecutionState &state, const uintptr_t address,
+                         const std::string &name);
+
+  // Create a read expression from a fresh array
+  ref<Expr> createFreshArray(ExecutionState &state, uint64_t &id,
+                             Expr::Width width);
 
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
@@ -326,13 +350,14 @@ private:
     return state.stack.back().locals[target->dest];
   }
 
-  void bindLocal(KInstruction *target, 
-                 ExecutionState &state, 
-                 ref<Expr> value);
+  void bindLocal(KInstruction *target, ExecutionState &state, ref<Expr> value,
+                 ref<Expr> error);
   void bindArgument(KFunction *kf, 
                     unsigned index,
                     ExecutionState &state,
                     ref<Expr> value);
+  void bindArgument(KFunction *kf, unsigned index, ExecutionState &state,
+                    ref<Expr> value, ref<Expr> error);
 
   ref<klee::ConstantExpr> evalConstantExpr(const llvm::ConstantExpr *ce);
 
@@ -362,6 +387,8 @@ private:
   const InstructionInfo & getLastNonKleeInternalInstruction(const ExecutionState &state,
       llvm::Instruction** lastInstruction);
 
+  bool shouldExitOn(enum TerminateReason termReason);
+
   // remove state from queue and delete
   void terminateState(ExecutionState &state);
   // call exit handler and terminate state
@@ -369,10 +396,10 @@ private:
   // call exit handler and terminate state
   void terminateStateOnExit(ExecutionState &state);
   // call error handler and terminate state
-  void terminateStateOnError(ExecutionState &state, 
-                             const llvm::Twine &message,
-                             const char *suffix,
-                             const llvm::Twine &longMessage="");
+  void terminateStateOnError(ExecutionState &state, const llvm::Twine &message,
+                             enum TerminateReason termReason,
+                             const char *suffix = NULL,
+                             const llvm::Twine &longMessage = "");
 
   // call error handler and terminate state, for execution errors
   // (things that should not be possible, like illegal instruction or
@@ -380,7 +407,7 @@ private:
   void terminateStateOnExecError(ExecutionState &state, 
                                  const llvm::Twine &message,
                                  const llvm::Twine &info="") {
-    terminateStateOnError(state, message, "exec.err", info);
+    terminateStateOnError(state, message, Exec, NULL, info);
   }
 
   /// bindModuleConstants - Initialize the module constant table.
@@ -415,7 +442,8 @@ private:
   void doDumpStates();
 
 public:
-  Executor(const InterpreterOptions &opts, InterpreterHandler *ie);
+  Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,
+      InterpreterHandler *ie);
   virtual ~Executor();
 
   const InterpreterHandler& getHandler() {
@@ -444,8 +472,8 @@ public:
     replayPosition = 0;
   }
 
-  virtual const llvm::Module *
-  setModule(llvm::Module *module, const ModuleOptions &opts);
+  virtual llvm::Module *setModule(llvm::Module *module,
+                                  const ModuleOptions &opts);
 
   virtual void useSeeds(const std::vector<struct KTest *> *seeds) { 
     usingSeeds = seeds;
@@ -465,6 +493,8 @@ public:
   virtual void setInhibitForking(bool value) {
     inhibitForking = value;
   }
+
+  void prepareForEarlyExit();
 
   /*** State accessor methods ***/
 
@@ -486,6 +516,7 @@ public:
                                std::map<const std::string*, std::set<unsigned> > &res);
 
   Expr::Width getWidthForLLVMType(LLVM_TYPE_Q llvm::Type *type) const;
+  size_t getAllocationAlignment(const llvm::Value *allocSite) const;
 };
   
 } // End klee namespace

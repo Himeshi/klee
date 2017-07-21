@@ -16,6 +16,7 @@
 
 // FIXME: We do not want to be exposing these? :(
 #include "../../lib/Core/AddressSpace.h"
+#include "../../lib/Core/SymbolicError.h"
 #include "klee/Internal/Module/KInstIterator.h"
 
 #include <map>
@@ -141,12 +142,15 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::set<std::string> arrayNames;
 
+  //@brief Symbolic error information
+  SymbolicError *symbolicError;
+
   std::string getFnAlias(std::string fn);
   void addFnAlias(std::string old_fn, std::string new_fn);
   void removeFnAlias(std::string fn);
 
 private:
-  ExecutionState() : ptreeNode(0) {}
+  ExecutionState() : ptreeNode(0), symbolicError(0) {}
 
 public:
   ExecutionState(KFunction *kf);

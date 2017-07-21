@@ -18,6 +18,7 @@ struct KTest;
 
 namespace llvm {
 class Function;
+class LLVMContext;
 class Module;
 class raw_ostream;
 class raw_fd_ostream;
@@ -51,21 +52,22 @@ public:
   /// registering a module with the interpreter.
   struct ModuleOptions {
     std::string LibraryDir;
+    std::string EntryPoint;
     bool Optimize;
     bool CheckDivZero;
     bool CheckOvershift;
 
-    ModuleOptions(const std::string& _LibraryDir, 
-                  bool _Optimize, bool _CheckDivZero,
-                  bool _CheckOvershift)
-      : LibraryDir(_LibraryDir), Optimize(_Optimize), 
-        CheckDivZero(_CheckDivZero), CheckOvershift(_CheckOvershift) {}
+    ModuleOptions(const std::string &_LibraryDir,
+                  const std::string &_EntryPoint, bool _Optimize,
+                  bool _CheckDivZero, bool _CheckOvershift)
+        : LibraryDir(_LibraryDir), EntryPoint(_EntryPoint), Optimize(_Optimize),
+          CheckDivZero(_CheckDivZero), CheckOvershift(_CheckOvershift) {}
   };
 
   enum LogType
   {
 	  STP, //.CVC (STP's native language)
-	  KQUERY, //.PC files (kQuery native language)
+	  KQUERY, //.KQUERY files (kQuery native language)
 	  SMTLIB2 //.SMT2 files (SMTLIB version 2 files)
   };
 
@@ -92,16 +94,16 @@ protected:
 public:
   virtual ~Interpreter() {}
 
-  static Interpreter *create(const InterpreterOptions &_interpreterOpts,
+  static Interpreter *create(llvm::LLVMContext &ctx,
+                             const InterpreterOptions &_interpreterOpts,
                              InterpreterHandler *ih);
 
   /// Register the module to be executed.  
   ///
   /// \return The final module after it has been optimized, checks
   /// inserted, and modified for interpretation.
-  virtual const llvm::Module * 
-  setModule(llvm::Module *module, 
-            const ModuleOptions &opts) = 0;
+  virtual llvm::Module *setModule(llvm::Module *module,
+                                  const ModuleOptions &opts) = 0;
 
   // supply a tree stream writer which the interpreter will use
   // to record the concrete path (as a stream of '0' and '1' bytes).
@@ -134,6 +136,8 @@ public:
   virtual void setHaltExecution(bool value) = 0;
 
   virtual void setInhibitForking(bool value) = 0;
+
+  virtual void prepareForEarlyExit() = 0;
 
   /*** State accessor methods ***/
 

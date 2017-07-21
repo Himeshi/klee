@@ -119,9 +119,11 @@ namespace klee {
     HANDLER(handleMerge);
     HANDLER(handleNew);
     HANDLER(handleNewArray);
+    HANDLER(handleBoundError);
     HANDLER(handlePreferCex);
     HANDLER(handlePosixPreferCex);
     HANDLER(handlePrintExpr);
+    HANDLER(handlePrintErrorExpr);
     HANDLER(handlePrintRange);
     HANDLER(handleRange);
     HANDLER(handleRealloc);
@@ -130,6 +132,7 @@ namespace klee {
     HANDLER(handleSetForking);
     HANDLER(handleSilentExit);
     HANDLER(handleStackTrace);
+    HANDLER(handleTrackError);
     HANDLER(handleUnderConstrained);
     HANDLER(handleWarning);
     HANDLER(handleWarningOnce);

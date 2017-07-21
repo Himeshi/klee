@@ -73,14 +73,34 @@ llvm::cl::list<QueryLoggingSolverType> queryLoggingOptions(
     "use-query-log",
     llvm::cl::desc("Log queries to a file. Multiple options can be specified separated by a comma. By default nothing is logged."),
     llvm::cl::values(
-        clEnumValN(ALL_PC,"all:pc","All queries in .pc (KQuery) format"),
+        clEnumValN(ALL_KQUERY,"all:kquery","All queries in .kquery (KQuery) format"),
         clEnumValN(ALL_SMTLIB,"all:smt2","All queries in .smt2 (SMT-LIBv2) format"),
-        clEnumValN(SOLVER_PC,"solver:pc","All queries reaching the solver in .pc (KQuery) format"),
+        clEnumValN(SOLVER_KQUERY,"solver:kquery","All queries reaching the solver in .kquery (KQuery) format"),
         clEnumValN(SOLVER_SMTLIB,"solver:smt2","All queries reaching the solver in .smt2 (SMT-LIBv2) format"),
         clEnumValEnd
 	),
     llvm::cl::CommaSeparated
 );
+
+llvm::cl::opt<bool>
+PrecisionError("precision",
+               llvm::cl::desc("Switch on numerical precision analysis"),
+               llvm::cl::init(false));
+
+llvm::cl::opt<bool> DebugPrecision(
+    "debug-precision",
+    llvm::cl::desc("Output debugging trace for numerical precision analysis"),
+    llvm::cl::init(false));
+
+llvm::cl::opt<bool> LoopBreaking(
+    "loop-breaking",
+    llvm::cl::desc(
+        "Enable loop breaking: effective only when -precision is specified"),
+    llvm::cl::init(false));
+
+llvm::cl::opt<bool>
+    UseAssignmentValidatingSolver("debug-assignment-validating-solver",
+                                  llvm::cl::init(false));
 
 #ifdef ENABLE_METASMT
 
@@ -139,6 +159,19 @@ llvm::cl::opt<CoreSolverType> CoreSolverToUse(
                      clEnumValN(Z3_SOLVER, "z3", "Z3" Z3_IS_DEFAULT_STR),
                      clEnumValEnd),
     llvm::cl::init(DEFAULT_CORE_SOLVER));
+
+llvm::cl::opt<CoreSolverType> DebugCrossCheckCoreSolverWith(
+    "debug-crosscheck-core-solver",
+    llvm::cl::desc(
+        "Specifiy a solver to use for cross checking with the core solver"),
+    llvm::cl::values(clEnumValN(STP_SOLVER, "stp", "stp"),
+                     clEnumValN(METASMT_SOLVER, "metasmt", "metaSMT"),
+                     clEnumValN(DUMMY_SOLVER, "dummy", "Dummy solver"),
+                     clEnumValN(Z3_SOLVER, "z3", "Z3"),
+                     clEnumValN(NO_SOLVER, "none",
+                                "Do not cross check (default)"),
+                     clEnumValEnd),
+    llvm::cl::init(NO_SOLVER));
 }
 #undef STP_IS_DEFAULT_STR
 #undef METASMT_IS_DEFAULT_STR

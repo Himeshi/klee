@@ -44,6 +44,7 @@
 #include "klee/Internal/Module/KModule.h"
 #include "klee/Internal/Support/ErrorHandling.h"
 #include "klee/Internal/Support/FloatEvaluation.h"
+#include "klee/Internal/Support/ModuleUtil.h"
 #include "klee/Internal/System/Time.h"
 #include "klee/Internal/System/MemoryUsage.h"
 #include "klee/SolverStats.h"
@@ -119,12 +120,7 @@ namespace {
   DumpStatesOnHalt("dump-states-on-halt",
                    cl::init(true),
 		   cl::desc("Dump test cases for all active states on exit (default=on)"));
- 
-  cl::opt<bool>
-  RandomizeFork("randomize-fork",
-                cl::init(false),
-		cl::desc("Randomly swap the true and false states on a fork (default=off)"));
- 
+  
   cl::opt<bool>
   AllowExternalSymCalls("allow-external-sym-calls",
                         cl::init(false),
@@ -276,10 +272,36 @@ namespace {
            cl::desc("Amount of time to dedicate to seeds, before normal search (default=0 (off))"),
            cl::init(0));
   
+  cl::list<Executor::TerminateReason>
+  ExitOnErrorType("exit-on-error-type",
+		  cl::desc("Stop execution after reaching a specified condition.  (default=off)"),
+		  cl::values(
+		    clEnumValN(Executor::Abort, "Abort", "The program crashed"),
+		    clEnumValN(Executor::Assert, "Assert", "An assertion was hit"),
+		    clEnumValN(Executor::Exec, "Exec", "Trying to execute an unexpected instruction"),
+		    clEnumValN(Executor::External, "External", "External objects referenced"),
+		    clEnumValN(Executor::Free, "Free", "Freeing invalid memory"),
+		    clEnumValN(Executor::Model, "Model", "Memory model limit hit"),
+		    clEnumValN(Executor::Overflow, "Overflow", "An overflow occurred"),
+		    clEnumValN(Executor::Ptr, "Ptr", "Pointer error"),
+		    clEnumValN(Executor::ReadOnly, "ReadOnly", "Write to read-only memory"),
+		    clEnumValN(Executor::ReportError, "ReportError", "klee_report_error called"),
+		    clEnumValN(Executor::User, "User", "Wrong klee_* functions invocation"),
+		    clEnumValN(Executor::Unhandled, "Unhandled", "Unhandled instruction hit"),
+		    clEnumValEnd),
+		  cl::ZeroOrMore);
+
+#if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
   cl::opt<unsigned int>
   StopAfterNInstructions("stop-after-n-instructions",
                          cl::desc("Stop execution after specified number of instructions (default=0 (off))"),
                          cl::init(0));
+#else
+  cl::opt<unsigned long long>
+  StopAfterNInstructions("stop-after-n-instructions",
+                         cl::desc("Stop execution after specified number of instructions (default=0 (off))"),
+                         cl::init(0));
+#endif
   
   cl::opt<unsigned>
   MaxForks("max-forks",
@@ -307,9 +329,25 @@ namespace klee {
   RNG theRNG;
 }
 
-Executor::Executor(const InterpreterOptions &opts, InterpreterHandler *ih)
+const char *Executor::TerminateReasonNames[] = {
+  [ Abort ] = "abort",
+  [ Assert ] = "assert",
+  [ Exec ] = "exec",
+  [ External ] = "external",
+  [ Free ] = "free",
+  [ Model ] = "model",
+  [ Overflow ] = "overflow",
+  [ Ptr ] = "ptr",
+  [ ReadOnly ] = "readonly",
+  [ ReportError ] = "reporterror",
+  [ User ] = "user",
+  [ Unhandled ] = "xxx",
+};
+
+Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
+    InterpreterHandler *ih)
     : Interpreter(opts), kmodule(0), interpreterHandler(ih), searcher(0),
-      externalDispatcher(new ExternalDispatcher()), statsTracker(0),
+      externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
       pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
       processTree(0), replayKTest(0), replayPath(0), usingSeeds(0),
       atMemoryLimit(false), inhibitForking(false), haltExecution(false),
@@ -322,15 +360,15 @@ Executor::Executor(const InterpreterOptions &opts, InterpreterHandler *ih)
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
   if (!coreSolver) {
-    llvm::errs() << "Failed to create core solver\n";
-    exit(1);
+    klee_error("Failed to create core solver\n");
   }
+
   Solver *solver = constructSolverChain(
       coreSolver,
       interpreterHandler->getOutputFilename(ALL_QUERIES_SMT2_FILE_NAME),
       interpreterHandler->getOutputFilename(SOLVER_QUERIES_SMT2_FILE_NAME),
-      interpreterHandler->getOutputFilename(ALL_QUERIES_PC_FILE_NAME),
-      interpreterHandler->getOutputFilename(SOLVER_QUERIES_PC_FILE_NAME));
+      interpreterHandler->getOutputFilename(ALL_QUERIES_KQUERY_FILE_NAME),
+      interpreterHandler->getOutputFilename(SOLVER_QUERIES_KQUERY_FILE_NAME));
 
   this->solver = new TimingSolver(solver, EqualitySubstitution);
   memory = new MemoryManager(&arrayCache);
@@ -347,7 +385,7 @@ Executor::Executor(const InterpreterOptions &opts, InterpreterHandler *ih)
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
     debugInstFile = new llvm::raw_fd_ostream(debug_file_name.c_str(), ErrorInfo,
-                                             llvm::sys::fs::OpenFlags::F_Text),
+                                             llvm::sys::fs::OpenFlags::F_Text);
 #else
     debugInstFile =
         new llvm::raw_fd_ostream(debug_file_name.c_str(), ErrorInfo);
@@ -365,9 +403,7 @@ Executor::Executor(const InterpreterOptions &opts, InterpreterHandler *ih)
   }
 }
 
-
-const Module *Executor::setModule(llvm::Module *module, 
-                                  const ModuleOptions &opts) {
+Module *Executor::setModule(llvm::Module *module, const ModuleOptions &opts) {
   assert(!kmodule && module && "can only register one module"); // XXX gross
   
   kmodule = new KModule(module);
@@ -501,7 +537,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
   // ensures that we won't conflict. we don't need to allocate a memory object
   // since reading/writing via a function pointer is unsupported anyway.
   for (Module::iterator i = m->begin(), ie = m->end(); i != ie; ++i) {
-    Function *f = i;
+    Function *f = static_cast<Function *>(i);
     ref<ConstantExpr> addr(0);
 
     // If the symbol has external weak linkage then it is implicitly
@@ -555,6 +591,8 @@ void Executor::initializeGlobals(ExecutionState &state) {
   for (Module::const_global_iterator i = m->global_begin(),
          e = m->global_end();
        i != e; ++i) {
+    const GlobalVariable *v = static_cast<const GlobalVariable *>(i);
+    size_t globalObjectAlignment = getAllocationAlignment(v);
     if (i->isDeclaration()) {
       // FIXME: We have no general way of handling unknown external
       // symbols. If we really cared about making external stuff work
@@ -562,7 +600,13 @@ void Executor::initializeGlobals(ExecutionState &state) {
       // hack where we check the object file information.
 
       LLVM_TYPE_Q Type *ty = i->getType()->getElementType();
-      uint64_t size = kmodule->targetData->getTypeStoreSize(ty);
+      uint64_t size = 0;
+      if (ty->isSized()) {
+	size = kmodule->targetData->getTypeStoreSize(ty);
+      } else {
+        klee_warning("Type for %.*s is not sized", (int)i->getName().size(),
+			i->getName().data());
+      }
 
       // XXX - DWD - hardcode some things until we decide how to fix.
 #ifndef WINDOWS
@@ -576,15 +620,16 @@ void Executor::initializeGlobals(ExecutionState &state) {
 #endif
 
       if (size == 0) {
-        llvm::errs() << "Unable to find size for global variable: " 
-                     << i->getName() 
-                     << " (use will result in out of bounds access)\n";
+        klee_warning("Unable to find size for global variable: %.*s (use will result in out of bounds access)",
+			(int)i->getName().size(), i->getName().data());
       }
 
-      MemoryObject *mo = memory->allocate(size, false, true, i);
+      MemoryObject *mo = memory->allocate(size, /*isLocal=*/false,
+                                          /*isGlobal=*/true, /*allocSite=*/v,
+                                          /*alignment=*/globalObjectAlignment);
       ObjectState *os = bindObjectInState(state, mo, false);
-      globalObjects.insert(std::make_pair(i, mo));
-      globalAddresses.insert(std::make_pair(i, mo->getBaseExpr()));
+      globalObjects.insert(std::make_pair(v, mo));
+      globalAddresses.insert(std::make_pair(v, mo->getBaseExpr()));
 
       // Program already running = object already initialized.  Read
       // concrete value and write it to our copy.
@@ -605,12 +650,14 @@ void Executor::initializeGlobals(ExecutionState &state) {
     } else {
       LLVM_TYPE_Q Type *ty = i->getType()->getElementType();
       uint64_t size = kmodule->targetData->getTypeStoreSize(ty);
-      MemoryObject *mo = memory->allocate(size, false, true, &*i);
+      MemoryObject *mo = memory->allocate(size, /*isLocal=*/false,
+                                          /*isGlobal=*/true, /*allocSite=*/v,
+                                          /*alignment=*/globalObjectAlignment);
       if (!mo)
         llvm::report_fatal_error("out of memory");
       ObjectState *os = bindObjectInState(state, mo, false);
-      globalObjects.insert(std::make_pair(i, mo));
-      globalAddresses.insert(std::make_pair(i, mo->getBaseExpr()));
+      globalObjects.insert(std::make_pair(v, mo));
+      globalAddresses.insert(std::make_pair(v, mo->getBaseExpr()));
 
       if (!i->hasInitializer())
           os->initializeToRandom();
@@ -622,7 +669,8 @@ void Executor::initializeGlobals(ExecutionState &state) {
        i != ie; ++i) {
     // Map the alias to its aliasee's address. This works because we have
     // addresses for everything, even undefined functions. 
-    globalAddresses.insert(std::make_pair(i, evalConstant(i->getAliasee())));
+    globalAddresses.insert(std::make_pair(static_cast<GlobalAlias *>(i),
+	  evalConstant(i->getAliasee())));
   }
 
   // once all objects are allocated, do the actual initialization
@@ -630,7 +678,8 @@ void Executor::initializeGlobals(ExecutionState &state) {
          e = m->global_end();
        i != e; ++i) {
     if (i->hasInitializer()) {
-      MemoryObject *mo = globalObjects.find(i)->second;
+      const GlobalVariable *v = static_cast<const GlobalVariable *>(i);
+      MemoryObject *mo = globalObjects.find(v)->second;
       const ObjectState *os = state.addressSpace.findObject(mo);
       assert(os);
       ObjectState *wos = state.addressSpace.getWriteable(mo, os);
@@ -885,9 +934,6 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
     falseState = trueState->branch();
     addedStates.push_back(falseState);
 
-    if (RandomizeFork && theRNG.getBool())
-      std::swap(trueState, falseState);
-
     if (it != seedMap.end()) {
       std::vector<SeedInfo> seeds = it->second;
       it->second.clear();
@@ -928,14 +974,18 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
     falseState->ptreeNode = res.first;
     trueState->ptreeNode = res.second;
 
-    if (!isInternal) {
-      if (pathWriter) {
-        falseState->pathOS = pathWriter->open(current.pathOS);
+    if (pathWriter) {
+      // Need to update the pathOS.id field of falseState, otherwise the same id
+      // is used for both falseState and trueState.
+      falseState->pathOS = pathWriter->open(current.pathOS);
+      if (!isInternal) {
         trueState->pathOS << "1";
         falseState->pathOS << "0";
-      }      
-      if (symPathWriter) {
-        falseState->symPathOS = symPathWriter->open(current.symPathOS);
+      }
+    }
+    if (symPathWriter) {
+      falseState->symPathOS = symPathWriter->open(current.symPathOS);
+      if (!isInternal) {
         trueState->symPathOS << "1";
         falseState->symPathOS << "0";
       }
@@ -1061,7 +1111,9 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
   // Determine if this is a constant or not.
   if (vnumber < 0) {
     unsigned index = -vnumber - 2;
-    return kmodule->constantTable[index];
+    Cell &ret = kmodule->constantTable[index];
+    ret.error = ConstantExpr::create(0, Expr::Int8);
+    return ret;
   } else {
     unsigned index = vnumber;
     StackFrame &sf = state.stack.back();
@@ -1069,14 +1121,24 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
   }
 }
 
-void Executor::bindLocal(KInstruction *target, ExecutionState &state, 
-                         ref<Expr> value) {
-  getDestCell(state, target).value = value;
+void Executor::bindLocal(KInstruction *target, ExecutionState &state,
+                         ref<Expr> value, ref<Expr> error) {
+  Cell &c = getDestCell(state, target);
+  c.value = value;
+  c.error = error;
 }
 
 void Executor::bindArgument(KFunction *kf, unsigned index, 
                             ExecutionState &state, ref<Expr> value) {
   getArgumentCell(state, kf, index).value = value;
+}
+
+void Executor::bindArgument(KFunction *kf, unsigned index,
+                            ExecutionState &state, ref<Expr> value,
+                            ref<Expr> error) {
+  Cell &c = getArgumentCell(state, kf, index);
+  c.value = value;
+  c.error = error;
 }
 
 ref<Expr> Executor::toUnique(const ExecutionState &state, 
@@ -1141,7 +1203,10 @@ void Executor::executeGetValue(ExecutionState &state,
     bool success = solver->getValue(state, e, value);
     assert(success && "FIXME: Unhandled solver failure");
     (void) success;
-    bindLocal(target, state, value);
+
+    // Default error value
+    ref<Expr> error = ConstantExpr::create(0, Expr::Int8);
+    bindLocal(target, state, value, error);
   } else {
     std::set< ref<Expr> > values;
     for (std::vector<SeedInfo>::iterator siit = it->second.begin(), 
@@ -1166,8 +1231,10 @@ void Executor::executeGetValue(ExecutionState &state,
     for (std::set< ref<Expr> >::iterator vit = values.begin(), 
            vie = values.end(); vit != vie; ++vit) {
       ExecutionState *es = *bit;
-      if (es)
-        bindLocal(target, *es, *vit);
+      if (es) {
+        ref<Expr> error = ConstantExpr::create(0, Expr::Int8);
+        bindLocal(target, *es, *vit, error);
+      }
       ++bit;
     }
   }
@@ -1187,8 +1254,11 @@ void Executor::printDebugInstructions(ExecutionState &state) {
     stream = &debugLogBuffer;
 
   if (!optionIsSet(DebugPrintInstructions, STDERR_COMPACT) &&
-      !optionIsSet(DebugPrintInstructions, FILE_COMPACT))
-    printFileLine(state, state.pc, *stream);
+      !optionIsSet(DebugPrintInstructions, FILE_COMPACT)) {
+    (*stream) << "     ";
+    state.pc->printFileLine(*stream);
+    (*stream) << ":";
+  }
 
   (*stream) << state.pc->info->id;
 
@@ -1219,18 +1289,30 @@ void Executor::stepInstruction(ExecutionState &state) {
     haltExecution = true;
 }
 
-void Executor::executeCall(ExecutionState &state, 
-                           KInstruction *ki,
-                           Function *f,
-                           std::vector< ref<Expr> > &arguments) {
+void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
+                           std::vector<Cell> &arguments) {
   Instruction *i = ki->inst;
   if (f && f->isDeclaration()) {
     switch(f->getIntrinsicID()) {
-    case Intrinsic::not_intrinsic:
+    case Intrinsic::not_intrinsic: {
+      // Here we replace cell vector with expression vector. We assume they are
+      // short.
+      std::vector<ref<Expr> > exprArguments;
+      for (std::vector<Cell>::iterator it = arguments.begin(),
+                                       ie = arguments.end();
+           it != ie; ++it) {
+        exprArguments.push_back(it->value);
+      }
+
+      for (std::vector<Cell>::iterator it = arguments.begin(),
+                                             ie = arguments.end();
+                 it != ie; ++it) {
+              exprArguments.push_back(it->error);
+      }
       // state may be destroyed by this call, cannot touch
-      callExternalFunction(state, ki, f, arguments);
+      callExternalFunction(state, ki, f, exprArguments);
       break;
-        
+    }
       // va_arg is handled by caller and intrinsic lowering, see comment for
       // ExecutionState::varargs
     case Intrinsic::vastart:  {
@@ -1244,28 +1326,39 @@ void Executor::executeCall(ExecutionState &state,
       // size. This happens to work fir x86-32 and x86-64, however.
       Expr::Width WordSize = Context::get().getPointerWidth();
       if (WordSize == Expr::Int32) {
-        executeMemoryOperation(state, true, arguments[0], 
-                               sf.varargs->getBaseExpr(), 0);
+        executeMemoryOperation(state, true, arguments[0],
+                               sf.varargs->getBaseExpr(),
+                               ConstantExpr::create(0, Expr::Int8), 0);
       } else {
         assert(WordSize == Expr::Int64 && "Unknown word size!");
 
         // X86-64 has quite complicated calling convention. However,
         // instead of implementing it, we can do a simple hack: just
         // make a function believe that all varargs are on stack.
-        executeMemoryOperation(state, true, arguments[0],
-                               ConstantExpr::create(48, 32), 0); // gp_offset
-        executeMemoryOperation(state, true,
-                               AddExpr::create(arguments[0], 
-                                               ConstantExpr::create(4, 64)),
-                               ConstantExpr::create(304, 32), 0); // fp_offset
-        executeMemoryOperation(state, true,
-                               AddExpr::create(arguments[0], 
-                                               ConstantExpr::create(8, 64)),
-                               sf.varargs->getBaseExpr(), 0); // overflow_arg_area
-        executeMemoryOperation(state, true,
-                               AddExpr::create(arguments[0], 
-                                               ConstantExpr::create(16, 64)),
-                               ConstantExpr::create(0, 64), 0); // reg_save_area
+        executeMemoryOperation(
+            state, true, arguments[0], ConstantExpr::create(48, 32),
+            ConstantExpr::create(0, Expr::Int8), 0); // gp_offset
+        Cell c1;
+        c1.value =
+            AddExpr::create(arguments[0].value, ConstantExpr::create(4, 64));
+        c1.error = arguments[0].error;
+        executeMemoryOperation(state, true, c1, ConstantExpr::create(304, 32),
+                               ConstantExpr::create(0, Expr::Int8),
+                               0); // fp_offset
+        Cell c2;
+        c2.value =
+            AddExpr::create(arguments[0].value, ConstantExpr::create(8, 64));
+        c2.error = arguments[0].error;
+        executeMemoryOperation(state, true, c2, sf.varargs->getBaseExpr(),
+                               ConstantExpr::create(0, Expr::Int8),
+                               0); // overflow_arg_area
+        Cell c3;
+        c3.value =
+            AddExpr::create(arguments[0].value, ConstantExpr::create(16, 64));
+        c3.error = arguments[0].error;
+        executeMemoryOperation(state, true, c3, ConstantExpr::create(0, 64),
+                               ConstantExpr::create(0, Expr::Int8),
+                               0); // reg_save_area
       }
       break;
     }
@@ -1309,16 +1402,16 @@ void Executor::executeCall(ExecutionState &state,
         klee_warning_once(f, "calling %s with extra arguments.", 
                           f->getName().data());
       } else if (callingArgs < funcArgs) {
-        terminateStateOnError(state, "calling function with too few arguments", 
-                              "user.err");
+        terminateStateOnError(state, "calling function with too few arguments",
+                              User);
         return;
       }
     } else {
       Expr::Width WordSize = Context::get().getPointerWidth();
 
       if (callingArgs < funcArgs) {
-        terminateStateOnError(state, "calling function with too few arguments", 
-                              "user.err");
+        terminateStateOnError(state, "calling function with too few arguments",
+                              User);
         return;
       }
 
@@ -1329,9 +1422,9 @@ void Executor::executeCall(ExecutionState &state,
         // FIXME: This is really specific to the architecture, not the pointer
         // size. This happens to work for x86-32 and x86-64, however.
         if (WordSize == Expr::Int32) {
-          size += Expr::getMinBytesForWidth(arguments[i]->getWidth());
+          size += Expr::getMinBytesForWidth(arguments[i].value->getWidth());
         } else {
-          Expr::Width argWidth = arguments[i]->getWidth();
+          Expr::Width argWidth = arguments[i].value->getWidth();
           // AMD64-ABI 3.5.7p5: Step 7. Align l->overflow_arg_area upwards to a
           // 16 byte boundary if alignment needed by type exceeds 8 byte
           // boundary.
@@ -1367,16 +1460,16 @@ void Executor::executeCall(ExecutionState &state,
           // FIXME: This is really specific to the architecture, not the pointer
           // size. This happens to work for x86-32 and x86-64, however.
           if (WordSize == Expr::Int32) {
-            os->write(offset, arguments[i]);
-            offset += Expr::getMinBytesForWidth(arguments[i]->getWidth());
+            os->write(offset, arguments[i].value);
+            offset += Expr::getMinBytesForWidth(arguments[i].value->getWidth());
           } else {
             assert(WordSize == Expr::Int64 && "Unknown word size!");
 
-            Expr::Width argWidth = arguments[i]->getWidth();
+            Expr::Width argWidth = arguments[i].value->getWidth();
             if (argWidth > Expr::Int64) {
               offset = llvm::RoundUpToAlignment(offset, 16);
             }
-            os->write(offset, arguments[i]);
+            os->write(offset, arguments[i].value);
             offset += llvm::RoundUpToAlignment(argWidth, WordSize) / 8;
           }
         }
@@ -1384,8 +1477,8 @@ void Executor::executeCall(ExecutionState &state,
     }
 
     unsigned numFormals = f->arg_size();
-    for (unsigned i=0; i<numFormals; ++i) 
-      bindArgument(kf, i, state, arguments[i]);
+    for (unsigned i = 0; i < numFormals; ++i)
+      bindArgument(kf, i, state, arguments[i].value, arguments[i].error);
   }
 }
 
@@ -1413,15 +1506,6 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
   }
 }
 
-void Executor::printFileLine(ExecutionState &state, KInstruction *ki,
-                             llvm::raw_ostream &debugFile) {
-  const InstructionInfo &ii = *ki->info;
-  if (ii.file != "")
-    debugFile << "     " << ii.file << ":" << ii.line << ":";
-  else
-    debugFile << "     [no debug info]:";
-}
-
 /// Compute the true target of a function call, resolving LLVM and KLEE aliases
 /// and bitcasts.
 Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
@@ -1442,9 +1526,8 @@ Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
         GlobalValue *old_gv = gv;
         gv = currModule->getNamedValue(alias);
         if (!gv) {
-          llvm::errs() << "Function " << alias << "(), alias for " 
-                       << old_gv->getName() << " not found!\n";
-          assert(0 && "function alias not found");
+          klee_error("Function %s(), alias for %s not found!\n", alias.c_str(),
+                     old_gv->getName().str().c_str());
         }
       }
      
@@ -1492,9 +1575,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     Instruction *caller = kcaller ? kcaller->inst : 0;
     bool isVoidReturn = (ri->getNumOperands() == 0);
     ref<Expr> result = ConstantExpr::alloc(0, Expr::Bool);
-    
+    ref<Expr> error = ConstantExpr::create(0, Expr::Int8);
+
     if (!isVoidReturn) {
-      result = eval(ki, 0, state).value;
+      Cell c = eval(ki, 0, state);
+      result = c.value;
+      error = c.error;
     }
     
     if (state.stack.size() <= 1) {
@@ -1515,7 +1601,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
       if (!isVoidReturn) {
         LLVM_TYPE_Q Type *t = caller->getType();
-        if (t != Type::getVoidTy(getGlobalContext())) {
+        if (t != Type::getVoidTy(i->getContext())) {
           // may need to do coercion due to bitcasts
           Expr::Width from = result->getWidth();
           Expr::Width to = getWidthForLLVMType(t);
@@ -1539,7 +1625,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             }
           }
 
-          bindLocal(kcaller, state, result);
+          bindLocal(kcaller, state, result, error);
         }
       } else {
         // We check that the return value has no users instead of
@@ -1751,11 +1837,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       break;
     }
     // evaluate arguments
-    std::vector< ref<Expr> > arguments;
+    std::vector<Cell> arguments;
     arguments.reserve(numArgs);
 
     for (unsigned j=0; j<numArgs; ++j)
-      arguments.push_back(eval(ki, j+1, state).value);
+      arguments.push_back(eval(ki, j + 1, state));
 
     if (f) {
       const FunctionType *fType = 
@@ -1771,11 +1857,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
         // XXX this really needs thought and validation
         unsigned i=0;
-        for (std::vector< ref<Expr> >::iterator
-               ai = arguments.begin(), ie = arguments.end();
+        for (std::vector<Cell>::iterator ai = arguments.begin(),
+                                         ie = arguments.end();
              ai != ie; ++ai) {
-          Expr::Width to, from = (*ai)->getWidth();
-            
+          Expr::Width to, from = ai->value->getWidth();
+
           if (i<fType->getNumParams()) {
             to = getWidthForLLVMType(fType->getParamType(i));
 
@@ -1789,9 +1875,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	      bool isSExt = cs.paramHasAttr(i+1, llvm::Attribute::SExt);
 #endif
               if (isSExt) {
-                arguments[i] = SExtExpr::create(arguments[i], to);
+                arguments[i].value = SExtExpr::create(arguments[i].value, to);
               } else {
-                arguments[i] = ZExtExpr::create(arguments[i], to);
+                arguments[i].value = ZExtExpr::create(arguments[i].value, to);
               }
             }
           }
@@ -1844,21 +1930,33 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   }
   case Instruction::PHI: {
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 0)
-    ref<Expr> result = eval(ki, state.incomingBBIndex, state).value;
+    Cell c = eval(ki, state.incomingBBIndex, state);
 #else
-    ref<Expr> result = eval(ki, state.incomingBBIndex * 2, state).value;
+    Cell c = eval(ki, state.incomingBBIndex * 2, state);
 #endif
-    bindLocal(ki, state, result);
+    ref<Expr> result = c.value;
+    ref<Expr> error = c.error;
+    // We use the arguments list as a carrier for the error amount
+    std::vector<ref<Expr> > errors;
+    errors.push_back(error);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, errors,
+                                                  result->getWidth()));
     break;
   }
 
     // Special instructions
   case Instruction::Select: {
     ref<Expr> cond = eval(ki, 0, state).value;
-    ref<Expr> tExpr = eval(ki, 1, state).value;
-    ref<Expr> fExpr = eval(ki, 2, state).value;
+    Cell c1 = eval(ki, 1, state);
+    ref<Expr> tExpr = c1.value;
+    ref<Expr> terror = c1.error;
+    Cell c2 = eval(ki, 2, state);
+    ref<Expr> fExpr = c2.value;
+    ref<Expr> ferror = c2.error;
     ref<Expr> result = SelectExpr::create(cond, tExpr, fExpr);
-    bindLocal(ki, state, result);
+    ref<Expr> error = SelectExpr::create(cond, terror, ferror);
+    bindLocal(ki, state, result, error);
     break;
   }
 
@@ -1871,21 +1969,42 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Add: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    bindLocal(ki, state, AddExpr::create(left, right));
+    ref<Expr> result = AddExpr::create(left, right);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
+
     break;
   }
 
   case Instruction::Sub: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    bindLocal(ki, state, SubExpr::create(left, right));
+    ref<Expr> result = SubExpr::create(left, right);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
  
   case Instruction::Mul: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    bindLocal(ki, state, MulExpr::create(left, right));
+    ref<Expr> result = MulExpr::create(left, right);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1893,7 +2012,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = UDivExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1901,7 +2026,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = SDivExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1909,7 +2040,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = URemExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
  
@@ -1917,7 +2054,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = SRemExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1925,7 +2068,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = AndExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1933,7 +2082,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = OrExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1941,7 +2096,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = XorExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1949,7 +2110,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = ShlExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1957,7 +2124,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = LShrExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1965,7 +2137,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
     ref<Expr> result = AShrExpr::create(left, right);
-    bindLocal(ki, state, result);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
@@ -1974,13 +2152,19 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::ICmp: {
     CmpInst *ci = cast<CmpInst>(i);
     ICmpInst *ii = cast<ICmpInst>(ci);
- 
+
     switch(ii->getPredicate()) {
     case ICmpInst::ICMP_EQ: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = EqExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -1988,7 +2172,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = NeExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -1996,7 +2186,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = UgtExpr::create(left, right);
-      bindLocal(ki, state,result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2004,7 +2200,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = UgeExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2012,7 +2214,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = UltExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2020,7 +2228,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = UleExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2028,7 +2242,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = SgtExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2036,7 +2256,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = SgeExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2044,7 +2270,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = SltExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2052,7 +2284,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
       ref<Expr> result = SleExpr::create(left, right);
-      bindLocal(ki, state, result);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
       break;
     }
 
@@ -2078,20 +2316,24 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   }
 
   case Instruction::Load: {
-    ref<Expr> base = eval(ki, 0, state).value;
-    executeMemoryOperation(state, false, base, 0, ki);
+    Cell cell = eval(ki, 0, state);
+    executeMemoryOperation(state, false, cell, 0,
+                           ConstantExpr::create(0, Expr::Int8), ki);
     break;
   }
   case Instruction::Store: {
-    ref<Expr> base = eval(ki, 1, state).value;
-    ref<Expr> value = eval(ki, 0, state).value;
-    executeMemoryOperation(state, true, base, value, 0);
+    Cell base = eval(ki, 1, state);
+    Cell valueCell = eval(ki, 0, state);
+    ref<Expr> value = valueCell.value;
+    ref<Expr> error = valueCell.error;
+    executeMemoryOperation(state, true, base, value, error, 0);
     break;
   }
 
   case Instruction::GetElementPtr: {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(ki);
-    ref<Expr> base = eval(ki, 0, state).value;
+    ref<Expr> oldBase = eval(ki, 0, state).value;
+    ref<Expr> base = oldBase;
 
     for (std::vector< std::pair<unsigned, uint64_t> >::iterator 
            it = kgepi->indices.begin(), ie = kgepi->indices.end(); 
@@ -2105,97 +2347,190 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (kgepi->offset)
       base = AddExpr::create(base,
                              Expr::createPointer(kgepi->offset));
-    bindLocal(ki, state, base);
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(oldBase);
+
+    bindLocal(ki, state, base,
+              state.symbolicError->propagateError(this, ki, base, arguments));
     break;
   }
 
     // Conversion
   case Instruction::Trunc: {
     CastInst *ci = cast<CastInst>(i);
-    ref<Expr> result = ExtractExpr::create(eval(ki, 0, state).value,
-                                           0,
-                                           getWidthForLLVMType(ci->getType()));
-    bindLocal(ki, state, result);
+    Cell c = eval(ki, 0, state);
+    ref<Expr> result =
+        ExtractExpr::create(c.value, 0, getWidthForLLVMType(ci->getType()));
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(c.value);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
   case Instruction::ZExt: {
     CastInst *ci = cast<CastInst>(i);
-    ref<Expr> result = ZExtExpr::create(eval(ki, 0, state).value,
-                                        getWidthForLLVMType(ci->getType()));
-    bindLocal(ki, state, result);
+    Cell c = eval(ki, 0, state);
+    ref<Expr> result =
+        ZExtExpr::create(c.value, getWidthForLLVMType(ci->getType()));
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(c.value);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
   case Instruction::SExt: {
     CastInst *ci = cast<CastInst>(i);
-    ref<Expr> result = SExtExpr::create(eval(ki, 0, state).value,
-                                        getWidthForLLVMType(ci->getType()));
-    bindLocal(ki, state, result);
+    Cell c = eval(ki, 0, state);
+    ref<Expr> result =
+        SExtExpr::create(c.value, getWidthForLLVMType(ci->getType()));
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(c.value);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
   case Instruction::IntToPtr: {
     CastInst *ci = cast<CastInst>(i);
     Expr::Width pType = getWidthForLLVMType(ci->getType());
-    ref<Expr> arg = eval(ki, 0, state).value;
-    bindLocal(ki, state, ZExtExpr::create(arg, pType));
+    Cell c = eval(ki, 0, state);
+    ref<Expr> arg = c.value;
+    ref<Expr> result = ZExtExpr::create(arg, pType);
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(arg);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   } 
   case Instruction::PtrToInt: {
     CastInst *ci = cast<CastInst>(i);
     Expr::Width iType = getWidthForLLVMType(ci->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
-    bindLocal(ki, state, ZExtExpr::create(arg, iType));
+    ref<Expr> result = ZExtExpr::create(arg, iType);
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(arg);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
   case Instruction::BitCast: {
-    ref<Expr> result = eval(ki, 0, state).value;
-    bindLocal(ki, state, result);
+    Cell c = eval(ki, 0, state);
+    ref<Expr> result = c.value;
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(result);
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
 
     // Floating point instructions
 
   case Instruction::FAdd: {
-    ref<ConstantExpr> left = toConstant(state, eval(ki, 0, state).value,
-                                        "floating point");
-    ref<ConstantExpr> right = toConstant(state, eval(ki, 1, state).value,
-                                         "floating point");
-    if (!fpWidthToSemantics(left->getWidth()) ||
-        !fpWidthToSemantics(right->getWidth()))
-      return terminateStateOnExecError(state, "Unsupported FAdd operation");
+    if (PrecisionError) {
+      ref<Expr> left = eval(ki, 0, state).value;
+      ref<Expr> right = eval(ki, 1, state).value;
+      ref<Expr> result = AddExpr::create(left, right);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      ref<ConstantExpr> left =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      ref<ConstantExpr> right =
+          toConstant(state, eval(ki, 1, state).value, "floating point");
+      if (!fpWidthToSemantics(left->getWidth()) ||
+          !fpWidthToSemantics(right->getWidth()))
+        return terminateStateOnExecError(state, "Unsupported FAdd operation");
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()), left->getAPValue());
-    Res.add(APFloat(*fpWidthToSemantics(right->getWidth()),right->getAPValue()), APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()),
+                        left->getAPValue());
+      Res.add(
+          APFloat(*fpWidthToSemantics(right->getWidth()), right->getAPValue()),
+          APFloat::rmNearestTiesToEven);
 #else
-    llvm::APFloat Res(left->getAPValue());
-    Res.add(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(left->getAPValue());
+      Res.add(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
 #endif
-    bindLocal(ki, state, ConstantExpr::alloc(Res.bitcastToAPInt()));
+
+      ref<Expr> result = ConstantExpr::alloc(Res.bitcastToAPInt());
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FSub: {
-    ref<ConstantExpr> left = toConstant(state, eval(ki, 0, state).value,
-                                        "floating point");
-    ref<ConstantExpr> right = toConstant(state, eval(ki, 1, state).value,
-                                         "floating point");
-    if (!fpWidthToSemantics(left->getWidth()) ||
-        !fpWidthToSemantics(right->getWidth()))
-      return terminateStateOnExecError(state, "Unsupported FSub operation");
+    if (PrecisionError) {
+      ref<Expr> left = eval(ki, 0, state).value;
+      ref<Expr> right = eval(ki, 1, state).value;
+      ref<Expr> result = SubExpr::create(left, right);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      ref<ConstantExpr> left =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      ref<ConstantExpr> right =
+          toConstant(state, eval(ki, 1, state).value, "floating point");
+      if (!fpWidthToSemantics(left->getWidth()) ||
+          !fpWidthToSemantics(right->getWidth()))
+        return terminateStateOnExecError(state, "Unsupported FSub operation");
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()), left->getAPValue());
-    Res.subtract(APFloat(*fpWidthToSemantics(right->getWidth()), right->getAPValue()), APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()),
+                        left->getAPValue());
+      Res.subtract(
+          APFloat(*fpWidthToSemantics(right->getWidth()), right->getAPValue()),
+          APFloat::rmNearestTiesToEven);
 #else
-    llvm::APFloat Res(left->getAPValue());
-    Res.subtract(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(left->getAPValue());
+      Res.subtract(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
 #endif
-    bindLocal(ki, state, ConstantExpr::alloc(Res.bitcastToAPInt()));
+      ref<Expr> result = ConstantExpr::alloc(Res.bitcastToAPInt());
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
- 
+
   case Instruction::FMul: {
+    if (PrecisionError) {
+      ref<Expr> left = eval(ki, 0, state).value;
+      ref<Expr> right = eval(ki, 1, state).value;
+
+      if (left->getWidth() > right->getWidth())
+        right = ZExtExpr::create(right, left->getWidth());
+      else if (left->getWidth() < right->getWidth())
+        left = ZExtExpr::create(left, right->getWidth());
+
+      ref<Expr> result = MulExpr::create(left, right);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
     ref<ConstantExpr> left = toConstant(state, eval(ki, 0, state).value,
                                         "floating point");
     ref<ConstantExpr> right = toConstant(state, eval(ki, 1, state).value,
@@ -2211,134 +2546,269 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     llvm::APFloat Res(left->getAPValue());
     Res.multiply(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
 #endif
-    bindLocal(ki, state, ConstantExpr::alloc(Res.bitcastToAPInt()));
+    ref<Expr> result = ConstantExpr::alloc(Res.bitcastToAPInt());
+
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(left);
+    arguments.push_back(right);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FDiv: {
-    ref<ConstantExpr> left = toConstant(state, eval(ki, 0, state).value,
-                                        "floating point");
-    ref<ConstantExpr> right = toConstant(state, eval(ki, 1, state).value,
-                                         "floating point");
-    if (!fpWidthToSemantics(left->getWidth()) ||
-        !fpWidthToSemantics(right->getWidth()))
-      return terminateStateOnExecError(state, "Unsupported FDiv operation");
+    if (PrecisionError) {
+      ref<Expr> left = eval(ki, 0, state).value;
+      ref<Expr> right = eval(ki, 1, state).value;
+
+      if (left->getWidth() > right->getWidth())
+        right = ZExtExpr::create(right, left->getWidth());
+      else if (left->getWidth() < right->getWidth())
+        left = ZExtExpr::create(left, right->getWidth());
+
+      ref<Expr> result = SDivExpr::create(left, right);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+      break;
+    } else {
+      ref<ConstantExpr> left =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      ref<ConstantExpr> right =
+          toConstant(state, eval(ki, 1, state).value, "floating point");
+      if (!fpWidthToSemantics(left->getWidth()) ||
+          !fpWidthToSemantics(right->getWidth()))
+        return terminateStateOnExecError(state, "Unsupported FDiv operation");
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()), left->getAPValue());
-    Res.divide(APFloat(*fpWidthToSemantics(right->getWidth()), right->getAPValue()), APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()),
+                        left->getAPValue());
+      Res.divide(
+          APFloat(*fpWidthToSemantics(right->getWidth()), right->getAPValue()),
+          APFloat::rmNearestTiesToEven);
 #else
-    llvm::APFloat Res(left->getAPValue());
-    Res.divide(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(left->getAPValue());
+      Res.divide(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
 #endif
-    bindLocal(ki, state, ConstantExpr::alloc(Res.bitcastToAPInt()));
+      ref<Expr> result = ConstantExpr::alloc(Res.bitcastToAPInt());
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FRem: {
-    ref<ConstantExpr> left = toConstant(state, eval(ki, 0, state).value,
-                                        "floating point");
-    ref<ConstantExpr> right = toConstant(state, eval(ki, 1, state).value,
-                                         "floating point");
-    if (!fpWidthToSemantics(left->getWidth()) ||
-        !fpWidthToSemantics(right->getWidth()))
-      return terminateStateOnExecError(state, "Unsupported FRem operation");
+    if (PrecisionError) {
+      ref<Expr> left = eval(ki, 0, state).value;
+      ref<Expr> right = eval(ki, 1, state).value;
+      ref<Expr> result = SRemExpr::create(left, right);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      ref<ConstantExpr> left =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      ref<ConstantExpr> right =
+          toConstant(state, eval(ki, 1, state).value, "floating point");
+      if (!fpWidthToSemantics(left->getWidth()) ||
+          !fpWidthToSemantics(right->getWidth()))
+        return terminateStateOnExecError(state, "Unsupported FRem operation");
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()), left->getAPValue());
-    Res.mod(APFloat(*fpWidthToSemantics(right->getWidth()),right->getAPValue()),
-            APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()),
+                        left->getAPValue());
+      Res.mod(
+          APFloat(*fpWidthToSemantics(right->getWidth()), right->getAPValue()),
+          APFloat::rmNearestTiesToEven);
 #else
-    llvm::APFloat Res(left->getAPValue());
-    Res.mod(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
+      llvm::APFloat Res(left->getAPValue());
+      Res.mod(APFloat(right->getAPValue()), APFloat::rmNearestTiesToEven);
 #endif
-    bindLocal(ki, state, ConstantExpr::alloc(Res.bitcastToAPInt()));
+      ref<Expr> result = ConstantExpr::alloc(Res.bitcastToAPInt());
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FPTrunc: {
-    FPTruncInst *fi = cast<FPTruncInst>(i);
-    Expr::Width resultType = getWidthForLLVMType(fi->getType());
-    ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
-                                       "floating point");
-    if (!fpWidthToSemantics(arg->getWidth()) || resultType > arg->getWidth())
-      return terminateStateOnExecError(state, "Unsupported FPTrunc operation");
+    if (PrecisionError) {
+      CastInst *ci = cast<CastInst>(i);
+      Cell c = eval(ki, 0, state);
+      ref<Expr> result =
+          ExtractExpr::create(c.value, 0, getWidthForLLVMType(ci->getType()));
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(c.value);
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      FPTruncInst *fi = cast<FPTruncInst>(i);
+      Expr::Width resultType = getWidthForLLVMType(fi->getType());
+      ref<ConstantExpr> arg =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      if (!fpWidthToSemantics(arg->getWidth()) || resultType > arg->getWidth())
+        return terminateStateOnExecError(state,
+                                         "Unsupported FPTrunc operation");
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Res(*fpWidthToSemantics(arg->getWidth()), arg->getAPValue());
+      llvm::APFloat Res(*fpWidthToSemantics(arg->getWidth()),
+                        arg->getAPValue());
 #else
-    llvm::APFloat Res(arg->getAPValue());
+      llvm::APFloat Res(arg->getAPValue());
 #endif
-    bool losesInfo = false;
-    Res.convert(*fpWidthToSemantics(resultType),
-                llvm::APFloat::rmNearestTiesToEven,
-                &losesInfo);
-    bindLocal(ki, state, ConstantExpr::alloc(Res));
+      bool losesInfo = false;
+      Res.convert(*fpWidthToSemantics(resultType),
+                  llvm::APFloat::rmNearestTiesToEven, &losesInfo);
+      ref<Expr> result = ConstantExpr::alloc(Res);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(arg);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FPExt: {
-    FPExtInst *fi = cast<FPExtInst>(i);
-    Expr::Width resultType = getWidthForLLVMType(fi->getType());
-    ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
-                                        "floating point");
-    if (!fpWidthToSemantics(arg->getWidth()) || arg->getWidth() > resultType)
-      return terminateStateOnExecError(state, "Unsupported FPExt operation");
+    if (PrecisionError) {
+      CastInst *ci = cast<CastInst>(i);
+      Cell c = eval(ki, 0, state);
+      ref<Expr> result =
+          SExtExpr::create(c.value, getWidthForLLVMType(ci->getType()));
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(c.value);
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      FPExtInst *fi = cast<FPExtInst>(i);
+      Expr::Width resultType = getWidthForLLVMType(fi->getType());
+      ref<ConstantExpr> arg =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      if (!fpWidthToSemantics(arg->getWidth()) || arg->getWidth() > resultType)
+        return terminateStateOnExecError(state, "Unsupported FPExt operation");
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Res(*fpWidthToSemantics(arg->getWidth()), arg->getAPValue());
+      llvm::APFloat Res(*fpWidthToSemantics(arg->getWidth()),
+                        arg->getAPValue());
 #else
-    llvm::APFloat Res(arg->getAPValue());
+      llvm::APFloat Res(arg->getAPValue());
 #endif
-    bool losesInfo = false;
-    Res.convert(*fpWidthToSemantics(resultType),
-                llvm::APFloat::rmNearestTiesToEven,
-                &losesInfo);
-    bindLocal(ki, state, ConstantExpr::alloc(Res));
+      bool losesInfo = false;
+      Res.convert(*fpWidthToSemantics(resultType),
+                  llvm::APFloat::rmNearestTiesToEven, &losesInfo);
+      ref<Expr> result = ConstantExpr::alloc(Res);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(arg);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FPToUI: {
-    FPToUIInst *fi = cast<FPToUIInst>(i);
-    Expr::Width resultType = getWidthForLLVMType(fi->getType());
-    ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
-                                       "floating point");
-    if (!fpWidthToSemantics(arg->getWidth()) || resultType > 64)
-      return terminateStateOnExecError(state, "Unsupported FPToUI operation");
+    if (PrecisionError) {
+      // We simply assume equality
+      ref<Expr> result = eval(ki, 0, state).value;
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(result);
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      FPToUIInst *fi = cast<FPToUIInst>(i);
+      Expr::Width resultType = getWidthForLLVMType(fi->getType());
+      ref<ConstantExpr> arg =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      if (!fpWidthToSemantics(arg->getWidth()) || resultType > 64)
+        return terminateStateOnExecError(state, "Unsupported FPToUI operation");
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Arg(*fpWidthToSemantics(arg->getWidth()), arg->getAPValue());
+      llvm::APFloat Arg(*fpWidthToSemantics(arg->getWidth()),
+                        arg->getAPValue());
 #else
-    llvm::APFloat Arg(arg->getAPValue());
+      llvm::APFloat Arg(arg->getAPValue());
 #endif
-    uint64_t value = 0;
-    bool isExact = true;
-    Arg.convertToInteger(&value, resultType, false,
-                         llvm::APFloat::rmTowardZero, &isExact);
-    bindLocal(ki, state, ConstantExpr::alloc(value, resultType));
+      uint64_t value = 0;
+      bool isExact = true;
+      Arg.convertToInteger(&value, resultType, false,
+                           llvm::APFloat::rmTowardZero, &isExact);
+      ref<Expr> result = ConstantExpr::alloc(value, resultType);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(arg);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FPToSI: {
-    FPToSIInst *fi = cast<FPToSIInst>(i);
-    Expr::Width resultType = getWidthForLLVMType(fi->getType());
-    ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
-                                       "floating point");
-    if (!fpWidthToSemantics(arg->getWidth()) || resultType > 64)
-      return terminateStateOnExecError(state, "Unsupported FPToSI operation");
+    if (PrecisionError) {
+      // We simply assume equality
+      ref<Expr> result = eval(ki, 0, state).value;
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(result);
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      FPToSIInst *fi = cast<FPToSIInst>(i);
+      Expr::Width resultType = getWidthForLLVMType(fi->getType());
+      ref<ConstantExpr> arg =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      if (!fpWidthToSemantics(arg->getWidth()) || resultType > 64)
+        return terminateStateOnExecError(state, "Unsupported FPToSI operation");
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    llvm::APFloat Arg(*fpWidthToSemantics(arg->getWidth()), arg->getAPValue());
+      llvm::APFloat Arg(*fpWidthToSemantics(arg->getWidth()),
+                        arg->getAPValue());
 #else
-    llvm::APFloat Arg(arg->getAPValue());
+      llvm::APFloat Arg(arg->getAPValue());
 
 #endif
-    uint64_t value = 0;
-    bool isExact = true;
-    Arg.convertToInteger(&value, resultType, true,
-                         llvm::APFloat::rmTowardZero, &isExact);
-    bindLocal(ki, state, ConstantExpr::alloc(value, resultType));
+      uint64_t value = 0;
+      bool isExact = true;
+      Arg.convertToInteger(&value, resultType, true,
+                           llvm::APFloat::rmTowardZero, &isExact);
+      ref<Expr> result = ConstantExpr::alloc(value, resultType);
+
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(arg);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::UIToFP: {
+    if (PrecisionError) {
+      // We simply assume equality
+      ref<Expr> result = eval(ki, 0, state).value;
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(result);
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
     UIToFPInst *fi = cast<UIToFPInst>(i);
     Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
@@ -2349,122 +2819,311 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     llvm::APFloat f(*semantics, 0);
     f.convertFromAPInt(arg->getAPValue(), false,
                        llvm::APFloat::rmNearestTiesToEven);
+    ref<Expr> result = ConstantExpr::alloc(f);
 
-    bindLocal(ki, state, ConstantExpr::alloc(f));
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(arg);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::SIToFP: {
-    SIToFPInst *fi = cast<SIToFPInst>(i);
-    Expr::Width resultType = getWidthForLLVMType(fi->getType());
-    ref<ConstantExpr> arg = toConstant(state, eval(ki, 0, state).value,
-                                       "floating point");
-    const llvm::fltSemantics *semantics = fpWidthToSemantics(resultType);
-    if (!semantics)
-      return terminateStateOnExecError(state, "Unsupported SIToFP operation");
-    llvm::APFloat f(*semantics, 0);
-    f.convertFromAPInt(arg->getAPValue(), true,
-                       llvm::APFloat::rmNearestTiesToEven);
+    if (PrecisionError) {
+      // We simply assume equality
+      ref<Expr> result = eval(ki, 0, state).value;
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(result);
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    } else {
+      SIToFPInst *fi = cast<SIToFPInst>(i);
+      Expr::Width resultType = getWidthForLLVMType(fi->getType());
+      ref<ConstantExpr> arg =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      const llvm::fltSemantics *semantics = fpWidthToSemantics(resultType);
+      if (!semantics)
+        return terminateStateOnExecError(state, "Unsupported SIToFP operation");
+      llvm::APFloat f(*semantics, 0);
+      f.convertFromAPInt(arg->getAPValue(), true,
+                         llvm::APFloat::rmNearestTiesToEven);
+      ref<Expr> result = ConstantExpr::alloc(f);
 
-    bindLocal(ki, state, ConstantExpr::alloc(f));
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(arg);
+
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
+    }
     break;
   }
 
   case Instruction::FCmp: {
-    FCmpInst *fi = cast<FCmpInst>(i);
-    ref<ConstantExpr> left = toConstant(state, eval(ki, 0, state).value,
-                                        "floating point");
-    ref<ConstantExpr> right = toConstant(state, eval(ki, 1, state).value,
-                                         "floating point");
-    if (!fpWidthToSemantics(left->getWidth()) ||
-        !fpWidthToSemantics(right->getWidth()))
-      return terminateStateOnExecError(state, "Unsupported FCmp operation");
+    if (PrecisionError) {
+      FCmpInst *fi = cast<FCmpInst>(i);
+      ref<Expr> left;
+      ref<Expr> right;
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-    APFloat LHS(*fpWidthToSemantics(left->getWidth()),left->getAPValue());
-    APFloat RHS(*fpWidthToSemantics(right->getWidth()),right->getAPValue());
-#else
-    APFloat LHS(left->getAPValue());
-    APFloat RHS(right->getAPValue());
-#endif
-    APFloat::cmpResult CmpRes = LHS.compare(RHS);
-
-    bool Result = false;
-    switch( fi->getPredicate() ) {
+      switch (fi->getPredicate()) {
       // Predicates which only care about whether or not the operands are NaNs.
-    case FCmpInst::FCMP_ORD:
-      Result = CmpRes != APFloat::cmpUnordered;
-      break;
+      case FCmpInst::FCMP_ORD: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        // Always true
+        ref<Expr> result = ConstantExpr::create(1, Expr::Bool);
 
-    case FCmpInst::FCMP_UNO:
-      Result = CmpRes == APFloat::cmpUnordered;
-      break;
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+
+        break;
+      }
+      case FCmpInst::FCMP_UNO: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        // Always false
+        ref<Expr> result = ConstantExpr::create(0, Expr::Bool);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
 
       // Ordered comparisons return false if either operand is NaN.  Unordered
       // comparisons return true if either operand is NaN.
-    case FCmpInst::FCMP_UEQ:
-      if (CmpRes == APFloat::cmpUnordered) {
+      case FCmpInst::FCMP_UEQ:
+      case FCmpInst::FCMP_OEQ: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        ref<Expr> result = EqExpr::create(left, right);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+      case FCmpInst::FCMP_UGT:
+      case FCmpInst::FCMP_OGT: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        ref<Expr> result = UgtExpr::create(left, right);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+
+      case FCmpInst::FCMP_UGE:
+      case FCmpInst::FCMP_OGE: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        ref<Expr> result = SgeExpr::create(left, right);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+
+      case FCmpInst::FCMP_ULT:
+      case FCmpInst::FCMP_OLT: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        ref<Expr> result = SltExpr::create(left, right);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+
+      case FCmpInst::FCMP_ULE:
+      case FCmpInst::FCMP_OLE: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        ref<Expr> result = SleExpr::create(left, right);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+
+      case FCmpInst::FCMP_UNE:
+      case FCmpInst::FCMP_ONE: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        ref<Expr> result = NeExpr::create(left, right);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+
+      default:
+        assert(0 && "Invalid FCMP predicate!");
+      case FCmpInst::FCMP_FALSE: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        // Always false
+        ref<Expr> result = ConstantExpr::create(0, Expr::Bool);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+      case FCmpInst::FCMP_TRUE: {
+        left = eval(ki, 0, state).value;
+        right = eval(ki, 1, state).value;
+        // Always false
+        ref<Expr> result = ConstantExpr::create(1, Expr::Bool);
+
+        std::vector<ref<Expr> > arguments;
+        arguments.push_back(left);
+        arguments.push_back(right);
+
+        bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                         this, ki, result, arguments));
+        break;
+      }
+      }
+    } else {
+      FCmpInst *fi = cast<FCmpInst>(i);
+      ref<ConstantExpr> left =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      ref<ConstantExpr> right =
+          toConstant(state, eval(ki, 1, state).value, "floating point");
+      if (!fpWidthToSemantics(left->getWidth()) ||
+          !fpWidthToSemantics(right->getWidth()))
+        return terminateStateOnExecError(state, "Unsupported FCmp operation");
+
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
+      APFloat LHS(*fpWidthToSemantics(left->getWidth()), left->getAPValue());
+      APFloat RHS(*fpWidthToSemantics(right->getWidth()), right->getAPValue());
+#else
+      APFloat LHS(left->getAPValue());
+      APFloat RHS(right->getAPValue());
+#endif
+      APFloat::cmpResult CmpRes = LHS.compare(RHS);
+
+      bool Result = false;
+      switch (fi->getPredicate()) {
+      // Predicates which only care about whether or not the operands are NaNs.
+      case FCmpInst::FCMP_ORD:
+        Result = CmpRes != APFloat::cmpUnordered;
+        break;
+
+      case FCmpInst::FCMP_UNO:
+        Result = CmpRes == APFloat::cmpUnordered;
+        break;
+
+      // Ordered comparisons return false if either operand is NaN.  Unordered
+      // comparisons return true if either operand is NaN.
+      case FCmpInst::FCMP_UEQ:
+        if (CmpRes == APFloat::cmpUnordered) {
+          Result = true;
+          break;
+        }
+      case FCmpInst::FCMP_OEQ:
+        Result = CmpRes == APFloat::cmpEqual;
+        break;
+
+      case FCmpInst::FCMP_UGT:
+        if (CmpRes == APFloat::cmpUnordered) {
+          Result = true;
+          break;
+        }
+      case FCmpInst::FCMP_OGT:
+        Result = CmpRes == APFloat::cmpGreaterThan;
+        break;
+
+      case FCmpInst::FCMP_UGE:
+        if (CmpRes == APFloat::cmpUnordered) {
+          Result = true;
+          break;
+        }
+      case FCmpInst::FCMP_OGE:
+        Result =
+            CmpRes == APFloat::cmpGreaterThan || CmpRes == APFloat::cmpEqual;
+        break;
+
+      case FCmpInst::FCMP_ULT:
+        if (CmpRes == APFloat::cmpUnordered) {
+          Result = true;
+          break;
+        }
+      case FCmpInst::FCMP_OLT:
+        Result = CmpRes == APFloat::cmpLessThan;
+        break;
+
+      case FCmpInst::FCMP_ULE:
+        if (CmpRes == APFloat::cmpUnordered) {
+          Result = true;
+          break;
+        }
+      case FCmpInst::FCMP_OLE:
+        Result = CmpRes == APFloat::cmpLessThan || CmpRes == APFloat::cmpEqual;
+        break;
+
+      case FCmpInst::FCMP_UNE:
+        Result = CmpRes == APFloat::cmpUnordered || CmpRes != APFloat::cmpEqual;
+        break;
+      case FCmpInst::FCMP_ONE:
+        Result = CmpRes != APFloat::cmpUnordered && CmpRes != APFloat::cmpEqual;
+        break;
+
+      default:
+        assert(0 && "Invalid FCMP predicate!");
+      case FCmpInst::FCMP_FALSE:
+        Result = false;
+        break;
+      case FCmpInst::FCMP_TRUE:
         Result = true;
         break;
       }
-    case FCmpInst::FCMP_OEQ:
-      Result = CmpRes == APFloat::cmpEqual;
-      break;
 
-    case FCmpInst::FCMP_UGT:
-      if (CmpRes == APFloat::cmpUnordered) {
-        Result = true;
-        break;
-      }
-    case FCmpInst::FCMP_OGT:
-      Result = CmpRes == APFloat::cmpGreaterThan;
-      break;
+      ref<Expr> result = ConstantExpr::alloc(Result, Expr::Bool);
 
-    case FCmpInst::FCMP_UGE:
-      if (CmpRes == APFloat::cmpUnordered) {
-        Result = true;
-        break;
-      }
-    case FCmpInst::FCMP_OGE:
-      Result = CmpRes == APFloat::cmpGreaterThan || CmpRes == APFloat::cmpEqual;
-      break;
+      std::vector<ref<Expr> > arguments;
+      arguments.push_back(left);
+      arguments.push_back(right);
 
-    case FCmpInst::FCMP_ULT:
-      if (CmpRes == APFloat::cmpUnordered) {
-        Result = true;
-        break;
-      }
-    case FCmpInst::FCMP_OLT:
-      Result = CmpRes == APFloat::cmpLessThan;
-      break;
-
-    case FCmpInst::FCMP_ULE:
-      if (CmpRes == APFloat::cmpUnordered) {
-        Result = true;
-        break;
-      }
-    case FCmpInst::FCMP_OLE:
-      Result = CmpRes == APFloat::cmpLessThan || CmpRes == APFloat::cmpEqual;
-      break;
-
-    case FCmpInst::FCMP_UNE:
-      Result = CmpRes == APFloat::cmpUnordered || CmpRes != APFloat::cmpEqual;
-      break;
-    case FCmpInst::FCMP_ONE:
-      Result = CmpRes != APFloat::cmpUnordered && CmpRes != APFloat::cmpEqual;
-      break;
-
-    default:
-      assert(0 && "Invalid FCMP predicate!");
-    case FCmpInst::FCMP_FALSE:
-      Result = false;
-      break;
-    case FCmpInst::FCMP_TRUE:
-      Result = true;
-      break;
+      bindLocal(ki, state, result, state.symbolicError->propagateError(
+                                       this, ki, result, arguments));
     }
-
-    bindLocal(ki, state, ConstantExpr::alloc(Result, Expr::Bool));
     break;
   }
   case Instruction::InsertValue: {
@@ -2491,7 +3150,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     else
       result = val;
 
-    bindLocal(ki, state, result);
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(agg);
+    arguments.push_back(val);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
   case Instruction::ExtractValue: {
@@ -2501,17 +3165,27 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     ref<Expr> result = ExtractExpr::create(agg, kgepi->offset*8, getWidthForLLVMType(i->getType()));
 
-    bindLocal(ki, state, result);
+    std::vector<ref<Expr> > arguments;
+    arguments.push_back(agg);
+
+    bindLocal(ki, state, result,
+              state.symbolicError->propagateError(this, ki, result, arguments));
     break;
   }
- 
-    // Other instructions...
-    // Unhandled
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
+  case Instruction::Fence: {
+    // Ignore for now
+    break;
+  }
+#endif
+
+  // Other instructions...
+  // Unhandled
   case Instruction::ExtractElement:
   case Instruction::InsertElement:
   case Instruction::ShuffleVector:
     terminateStateOnError(state, "XXX vector instructions unhandled",
-                          "xxx.err");
+                          Unhandled);
     break;
  
   default:
@@ -2744,7 +3418,29 @@ void Executor::run(ExecutionState &initialState) {
     KInstruction *ki = state.pc;
     stepInstruction(state);
 
-    executeInstruction(state, ki);
+    if (PrecisionError) {
+      if (DebugPrecision) {
+        llvm::errs() << "\n----------------------------------------------\n";
+        llvm::errs() << "Executing: ";
+        ki->inst->dump();
+      }
+
+      llvm::BasicBlock *exitBlock;
+      if (LoopBreaking) {
+        if (state.symbolicError->breakLoop(this, state, ki->inst, exitBlock)) {
+          transferToBasicBlock(exitBlock, ki->inst->getParent(), state);
+          ki = state.pc;
+        }
+      }
+      executeInstruction(state, ki);
+
+      if (DebugPrecision) {
+        state.symbolicError->dump();
+      }
+    } else {
+      executeInstruction(state, ki);
+    }
+
     processTimers(&state, MaxInstructionTime);
 
     checkMemoryUsage();
@@ -2892,8 +3588,21 @@ const InstructionInfo & Executor::getLastNonKleeInternalInstruction(const Execut
   }
   return *ii;
 }
+
+bool Executor::shouldExitOn(enum TerminateReason termReason) {
+  std::vector<TerminateReason>::iterator s = ExitOnErrorType.begin();
+  std::vector<TerminateReason>::iterator e = ExitOnErrorType.end();
+
+  for (; s != e; ++s)
+    if (termReason == *s)
+      return true;
+
+  return false;
+}
+
 void Executor::terminateStateOnError(ExecutionState &state,
                                      const llvm::Twine &messaget,
+                                     enum TerminateReason termReason,
                                      const char *suffix,
                                      const llvm::Twine &info) {
   std::string message = messaget.str();
@@ -2926,10 +3635,20 @@ void Executor::terminateStateOnError(ExecutionState &state,
     if (info_str != "")
       msg << "Info: \n" << info_str;
 
+    std::string suffix_buf;
+    if (!suffix) {
+      suffix_buf = TerminateReasonNames[termReason];
+      suffix_buf += ".err";
+      suffix = suffix_buf.c_str();
+    }
+
     interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
   }
     
   terminateState(state);
+
+  if (shouldExitOn(termReason))
+    haltExecution = true;
 }
 
 // XXX shoot me
@@ -2950,9 +3669,9 @@ void Executor::callExternalFunction(ExecutionState &state,
     return;
   
   if (NoExternals && !okExternals.count(function->getName())) {
-    llvm::errs() << "KLEE:ERROR: Calling not-OK external function : "
-                 << function->getName().str() << "\n";
-    terminateStateOnError(state, "externals disallowed", "user.err");
+    klee_warning("Calling not-OK external function : %s\n",
+               function->getName().str().c_str());
+    terminateStateOnError(state, "externals disallowed", User);
     return;
   }
 
@@ -3010,21 +3729,21 @@ void Executor::callExternalFunction(ExecutionState &state,
   bool success = externalDispatcher->executeCall(function, target->inst, args);
   if (!success) {
     terminateStateOnError(state, "failed external call: " + function->getName(),
-                          "external.err");
+                          External);
     return;
   }
 
   if (!state.addressSpace.copyInConcretes()) {
     terminateStateOnError(state, "external modified read-only object",
-                          "external.err");
+                          External);
     return;
   }
 
   LLVM_TYPE_Q Type *resultType = target->inst->getType();
-  if (resultType != Type::getVoidTy(getGlobalContext())) {
+  if (resultType != Type::getVoidTy(function->getContext())) {
     ref<Expr> e = ConstantExpr::fromMemory((void*) args, 
                                            getWidthForLLVMType(resultType));
-    bindLocal(target, state, e);
+    bindLocal(target, state, e, ConstantExpr::create(0, Expr::Int8));
   }
 }
 
@@ -3082,11 +3801,15 @@ void Executor::executeAlloc(ExecutionState &state,
                             const ObjectState *reallocFrom) {
   size = toUnique(state, size);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
-    MemoryObject *mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
-                                        state.prevPC->inst);
+    const llvm::Value *allocSite = state.prevPC->inst;
+    size_t allocationAlignment = getAllocationAlignment(allocSite);
+    MemoryObject *mo =
+        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false,
+                         allocSite, allocationAlignment);
     if (!mo) {
-      bindLocal(target, state, 
-                ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+      bindLocal(target, state,
+                ConstantExpr::alloc(0, Context::get().getPointerWidth()),
+                ConstantExpr::create(0, Expr::Int8));
     } else {
       ObjectState *os = bindObjectInState(state, mo, isLocal);
       if (zeroMemory) {
@@ -3094,8 +3817,9 @@ void Executor::executeAlloc(ExecutionState &state,
       } else {
         os->initializeToRandom();
       }
-      bindLocal(target, state, mo->getBaseExpr());
-      
+      bindLocal(target, state, mo->getBaseExpr(),
+                ConstantExpr::create(0, Expr::Int8));
+
       if (reallocFrom) {
         unsigned count = std::min(reallocFrom->size, os->size);
         for (unsigned i=0; i<count; i++)
@@ -3159,8 +3883,9 @@ void Executor::executeAlloc(ExecutionState &state,
                true);
         if (hugeSize.first) {
           klee_message("NOTE: found huge malloc, returning 0");
-          bindLocal(target, *hugeSize.first, 
-                    ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+          bindLocal(target, *hugeSize.first,
+                    ConstantExpr::alloc(0, Context::get().getPointerWidth()),
+                    ConstantExpr::create(0, Expr::Int8));
         }
         
         if (hugeSize.second) {
@@ -3170,10 +3895,8 @@ void Executor::executeAlloc(ExecutionState &state,
           ExprPPrinter::printOne(info, "  size expr", size);
           info << "  concretization : " << example << "\n";
           info << "  unbound example: " << tmp << "\n";
-          terminateStateOnError(*hugeSize.second, 
-                                "concretized symbolic size", 
-                                "model.err", 
-                                info.str());
+          terminateStateOnError(*hugeSize.second, "concretized symbolic size",
+                                Model, NULL, info.str());
         }
       }
     }
@@ -3190,7 +3913,8 @@ void Executor::executeFree(ExecutionState &state,
   StatePair zeroPointer = fork(state, Expr::createIsZero(address), true);
   if (zeroPointer.first) {
     if (target)
-      bindLocal(target, *zeroPointer.first, Expr::createPointer(0));
+      bindLocal(target, *zeroPointer.first, Expr::createPointer(0),
+                ConstantExpr::create(0, Expr::Int8));
   }
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
@@ -3200,19 +3924,16 @@ void Executor::executeFree(ExecutionState &state,
            ie = rl.end(); it != ie; ++it) {
       const MemoryObject *mo = it->first.first;
       if (mo->isLocal) {
-        terminateStateOnError(*it->second, 
-                              "free of alloca", 
-                              "free.err",
+        terminateStateOnError(*it->second, "free of alloca", Free, NULL,
                               getAddressInfo(*it->second, address));
       } else if (mo->isGlobal) {
-        terminateStateOnError(*it->second, 
-                              "free of global", 
-                              "free.err",
+        terminateStateOnError(*it->second, "free of global", Free, NULL,
                               getAddressInfo(*it->second, address));
       } else {
         it->second->addressSpace.unbindObject(mo);
         if (target)
-          bindLocal(target, *it->second, Expr::createPointer(0));
+          bindLocal(target, *it->second, Expr::createPointer(0),
+                    ConstantExpr::create(0, Expr::Int8));
       }
     }
   }
@@ -3242,18 +3963,16 @@ void Executor::resolveExact(ExecutionState &state,
   }
 
   if (unbound) {
-    terminateStateOnError(*unbound,
-                          "memory error: invalid pointer: " + name,
-                          "ptr.err",
-                          getAddressInfo(*unbound, p));
+    terminateStateOnError(*unbound, "memory error: invalid pointer: " + name,
+                          Ptr, NULL, getAddressInfo(*unbound, p));
   }
 }
 
-void Executor::executeMemoryOperation(ExecutionState &state,
-                                      bool isWrite,
-                                      ref<Expr> address,
-                                      ref<Expr> value /* undef if read */,
-                                      KInstruction *target /* undef if write */) {
+void Executor::executeMemoryOperation(
+    ExecutionState &state, bool isWrite, Cell &cell,
+    ref<Expr> value /* undef if read */, ref<Expr> error /* undef if read */,
+    KInstruction *target /* undef if write */) {
+  ref<Expr> address = cell.value;
   Expr::Width type = (isWrite ? value->getWidth() : 
                      getWidthForLLVMType(target->inst->getType()));
   unsigned bytes = Expr::getMinBytesForWidth(type);
@@ -3300,20 +4019,23 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       const ObjectState *os = op.second;
       if (isWrite) {
         if (os->readOnly) {
-          terminateStateOnError(state,
-                                "memory error: object read only",
-                                "readonly.err");
+          terminateStateOnError(state, "memory error: object read only",
+                                ReadOnly);
         } else {
           ObjectState *wos = state.addressSpace.getWriteable(mo, os);
           wos->write(offset, value);
-        }          
+          state.symbolicError->executeStore(state.pc->inst, address, value,
+                                            error);
+        }
       } else {
         ref<Expr> result = os->read(offset, type);
         
         if (interpreterOpts.MakeConcreteSymbolic)
           result = replaceReadWithSymbolic(state, result);
-        
-        bindLocal(target, state, result);
+
+        ref<Expr> resultError =
+            state.symbolicError->executeLoad(target->inst, address);
+        bindLocal(target, state, result, resultError);
       }
 
       return;
@@ -3344,16 +4066,19 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     if (bound) {
       if (isWrite) {
         if (os->readOnly) {
-          terminateStateOnError(*bound,
-                                "memory error: object read only",
-                                "readonly.err");
+          terminateStateOnError(*bound, "memory error: object read only",
+                                ReadOnly);
         } else {
           ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
           wos->write(mo->getOffsetExpr(address), value);
+          state.symbolicError->executeStore(state.pc->inst, address, value,
+                                            error);
         }
       } else {
         ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-        bindLocal(target, *bound, result);
+        ref<Expr> resultError =
+            state.symbolicError->executeLoad(target->inst, address);
+        bindLocal(target, *bound, result, resultError);
       }
     }
 
@@ -3367,10 +4092,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     if (incomplete) {
       terminateStateEarly(*unbound, "Query timed out (resolve).");
     } else {
-      terminateStateOnError(*unbound,
-                            "memory error: out of bound pointer",
-                            "ptr.err",
-                            getAddressInfo(*unbound, address));
+      terminateStateOnError(*unbound, "memory error: out of bound pointer", Ptr,
+                            NULL, getAddressInfo(*unbound, address));
     }
   }
 }
@@ -3405,9 +4128,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
             std::vector<unsigned char> &values = si.assignment.bindings[array];
             values = std::vector<unsigned char>(mo->size, '\0');
           } else if (!AllowSeedExtension) {
-            terminateStateOnError(state, 
-                                  "ran out of inputs during seeding",
-                                  "user.err");
+            terminateStateOnError(state, "ran out of inputs during seeding",
+                                  User);
             break;
           }
         } else {
@@ -3421,9 +4143,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 		<< " vs " << obj->name << "[" << obj->numBytes << "]"
 		<< " in test\n";
 
-            terminateStateOnError(state,
-                                  msg.str(),
-                                  "user.err");
+            terminateStateOnError(state, msg.str(), User);
             break;
           } else {
             std::vector<unsigned char> &values = si.assignment.bindings[array];
@@ -3440,17 +4160,49 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
   } else {
     ObjectState *os = bindObjectInState(state, mo, false);
     if (replayPosition >= replayKTest->numObjects) {
-      terminateStateOnError(state, "replay count mismatch", "user.err");
+      terminateStateOnError(state, "replay count mismatch", User);
     } else {
       KTestObject *obj = &replayKTest->objects[replayPosition++];
       if (obj->numBytes != mo->size) {
-        terminateStateOnError(state, "replay size mismatch", "user.err");
+        terminateStateOnError(state, "replay size mismatch", User);
       } else {
         for (unsigned i=0; i<mo->size; i++)
           os->write8(i, obj->bytes[i]);
       }
     }
   }
+}
+
+void Executor::executeStoreError(ExecutionState &state, const uintptr_t address,
+                                 const std::string &name) {
+  // Find a unique name for this array.  First try the original name,
+  // or if that fails try adding a unique identifier. Shamelessly copied from
+  // executeMakeSymbolic.
+  unsigned id = 0;
+  std::string uniqueName = name;
+  while (!state.arrayNames.insert(uniqueName).second) {
+    uniqueName = name + "_" + llvm::utostr(++id);
+  }
+  const Array *array = arrayCache.CreateArray(uniqueName, Expr::Int8);
+  ref<Expr> errorExpr = ReadExpr::create(
+      UpdateList(array, 0), ConstantExpr::create(0, array->getDomain()));
+  ref<Expr> addressExpr = Expr::createPointer(address);
+
+  state.symbolicError->storeError(state.pc->inst, addressExpr, errorExpr);
+}
+
+// store the error amount of a memory object at a given address
+ref<Expr> Executor::createFreshArray(ExecutionState &state, uint64_t &id,
+                                     Expr::Width width) {
+  // Find a unique name for this array.  First try the original name,
+  // or if that fails try adding a unique identifier. Shamelessly copied from
+  // executeMakeSymbolic.
+  std::string uniqueName = "_fresh_" + llvm::utostr(++id);
+  while (!state.arrayNames.insert(uniqueName).second) {
+    uniqueName = "_fresh_" + llvm::utostr(++id);
+  }
+  const Array *array = arrayCache.CreateArray(uniqueName, width);
+  return Expr::createTempRead(array, width);
 }
 
 /***/
@@ -3481,10 +4233,12 @@ void Executor::runFunctionAsMain(Function *f,
   Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end();
   if (ai!=ae) {
     arguments.push_back(ConstantExpr::alloc(argc, Expr::Int32));
-
     if (++ai!=ae) {
-      argvMO = memory->allocate((argc+1+envc+1+1) * NumPtrBytes, false, true,
-                                f->begin()->begin());
+      Instruction *first = static_cast<Instruction *>(f->begin()->begin());
+      argvMO =
+          memory->allocate((argc + 1 + envc + 1 + 1) * NumPtrBytes,
+                           /*isLocal=*/false, /*isGlobal=*/true,
+                           /*allocSite=*/first, /*alignment=*/8);
 
       if (!argvMO)
         klee_error("Could not allocate memory for function arguments");
@@ -3526,8 +4280,10 @@ void Executor::runFunctionAsMain(Function *f,
       } else {
         char *s = i<argc ? argv[i] : envp[i-(argc+1)];
         int j, len = strlen(s);
-        
-        MemoryObject *arg = memory->allocate(len+1, false, true, state->pc->inst);
+
+        MemoryObject *arg =
+            memory->allocate(len + 1, /*isLocal=*/false, /*isGlobal=*/true,
+                             /*allocSite=*/state->pc->inst, /*alignment=*/8);
         if (!arg)
           klee_error("Could not allocate memory for function arguments");
         ObjectState *os = bindObjectInState(*state, arg, false);
@@ -3703,9 +4459,82 @@ Expr::Width Executor::getWidthForLLVMType(LLVM_TYPE_Q llvm::Type *type) const {
   return kmodule->targetData->getTypeSizeInBits(type);
 }
 
+size_t Executor::getAllocationAlignment(const llvm::Value *allocSite) const {
+  // FIXME: 8 was the previous default. We shouldn't hard code this
+  // and should fetch the default from elsewhere.
+  const size_t forcedAlignment = 8;
+  size_t alignment = 0;
+  LLVM_TYPE_Q llvm::Type *type = NULL;
+  std::string allocationSiteName(allocSite->getName().str());
+  if (const GlobalValue *GV = dyn_cast<GlobalValue>(allocSite)) {
+    alignment = GV->getAlignment();
+    if (const GlobalVariable *globalVar = dyn_cast<GlobalVariable>(GV)) {
+      // All GlobalVariables's have pointer type
+      LLVM_TYPE_Q llvm::PointerType *ptrType =
+          dyn_cast<llvm::PointerType>(globalVar->getType());
+      assert(ptrType && "globalVar's type is not a pointer");
+      type = ptrType->getElementType();
+    } else {
+      type = GV->getType();
+    }
+  } else if (const AllocaInst *AI = dyn_cast<AllocaInst>(allocSite)) {
+    alignment = AI->getAlignment();
+    type = AI->getAllocatedType();
+  } else if (isa<InvokeInst>(allocSite) || isa<CallInst>(allocSite)) {
+    // FIXME: Model the semantics of the call to use the right alignment
+    llvm::Value *allocSiteNonConst = const_cast<llvm::Value *>(allocSite);
+    const CallSite cs = (isa<InvokeInst>(allocSiteNonConst)
+                             ? CallSite(cast<InvokeInst>(allocSiteNonConst))
+                             : CallSite(cast<CallInst>(allocSiteNonConst)));
+    llvm::Function *fn =
+        klee::getDirectCallTarget(cs, /*moduleIsFullyLinked=*/true);
+    if (fn)
+      allocationSiteName = fn->getName().str();
+
+    klee_warning_once(fn != NULL ? fn : allocSite,
+                      "Alignment of memory from call \"%s\" is not "
+                      "modelled. Using alignment of %zu.",
+                      allocationSiteName.c_str(), forcedAlignment);
+    alignment = forcedAlignment;
+  } else {
+    llvm_unreachable("Unhandled allocation site");
+  }
+
+  if (alignment == 0) {
+    assert(type != NULL);
+    // No specified alignment. Get the alignment for the type.
+    if (type->isSized()) {
+      alignment = kmodule->targetData->getPrefTypeAlignment(type);
+    } else {
+      klee_warning_once(allocSite, "Cannot determine memory alignment for "
+                                   "\"%s\". Using alignment of %zu.",
+                        allocationSiteName.c_str(), forcedAlignment);
+      alignment = forcedAlignment;
+    }
+  }
+
+  // Currently we require alignment be a power of 2
+  if (!bits64::isPowerOfTwo(alignment)) {
+    klee_warning_once(allocSite, "Alignment of %zu requested for %s but this "
+                                 "not supported. Using alignment of %zu",
+                      alignment, allocSite->getName().str().c_str(),
+                      forcedAlignment);
+    alignment = forcedAlignment;
+  }
+  assert(bits64::isPowerOfTwo(alignment) &&
+         "Returned alignment must be a power of two");
+  return alignment;
+}
+
+void Executor::prepareForEarlyExit() {
+  if (statsTracker) {
+    // Make sure stats get flushed out
+    statsTracker->done();
+  }
+}
 ///
 
-Interpreter *Interpreter::create(const InterpreterOptions &opts,
+Interpreter *Interpreter::create(LLVMContext &ctx, const InterpreterOptions &opts,
                                  InterpreterHandler *ih) {
-  return new Executor(opts, ih);
+  return new Executor(ctx, opts, ih);
 }
